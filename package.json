@@ -9,5 +9,20 @@
     "build:tax": "bash scripts/build.sh tax-yearend",
     "serve:tax": "hugo server --source sites/tax-yearend --themesDir $(pwd)/themes -F -D"
   },
-  "private": true
+  "private": true,
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/netgamer/wzd-blog-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/netgamer/wzd-blog-platform/issues"
+  },
+  "homepage": "https://github.com/netgamer/wzd-blog-platform#readme",
+  "dependencies": {
+    "puppeteer": "^24.42.0"
+  }
 }
