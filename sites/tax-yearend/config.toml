@@ -1,4 +1,4 @@
-baseURL = 'https://tax-yearend.pages.dev/'
+baseURL = 'https://netgamer.github.io/wzd-blog-platform/'
 languageCode = 'ko'
 title = '연말정산 가이드 - 소득공제부터 환급까지'
 theme = 'wzd-gov-theme'
