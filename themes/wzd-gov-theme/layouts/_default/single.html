@@ -1,0 +1,59 @@
+{{ define "main" }}
+<article class="post" itemscope itemtype="https://schema.org/Article">
+  <header class="post-header">
+    <h1 class="post-title" itemprop="headline">{{ .Title }}</h1>
+    <div class="post-meta">
+      <time datetime="{{ .Date.Format "2006-01-02" }}" itemprop="datePublished">
+        {{ .Date.Format "2006년 1월 2일" }}
+      </time>
+      {{ with .Params.author }}<span class="post-author" itemprop="author">{{ . }}</span>{{ end }}
+      {{ if .Params.categories }}
+      <span class="post-categories">
+        {{ range .Params.categories }}<a href="/categories/{{ . | urlize }}/">{{ . }}</a> {{ end }}
+      </span>
+      {{ end }}
+    </div>
+  </header>
+
+  {{ if .Params.image }}
+  <figure class="post-hero">
+    <img src="{{ .Params.image }}" alt="{{ .Title }}" loading="lazy" itemprop="image">
+  </figure>
+  {{ end }}
+
+  {{/* AdSense - 본문 상단 */}}
+  {{ if .Site.Params.adsenseId }}
+  <div class="ad-unit ad-top">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="{{ .Site.Params.adsenseId }}" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+  {{ end }}
+
+  <div class="post-content" itemprop="articleBody">
+    {{ .Content }}
+  </div>
+
+  {{/* AdSense - 본문 하단 */}}
+  {{ if .Site.Params.adsenseId }}
+  <div class="ad-unit ad-bottom">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="{{ .Site.Params.adsenseId }}" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+  {{ end }}
+
+  <footer class="post-footer">
+    {{ if .Params.tags }}
+    <div class="post-tags">
+      {{ range .Params.tags }}<a href="/tags/{{ . | urlize }}/" class="tag">#{{ . }}</a> {{ end }}
+    </div>
+    {{ end }}
+
+    <div class="post-disclaimer">
+      <p>본 글은 정보 제공 목적으로 작성되었으며, 정확한 내용은 해당 기관 공식 홈페이지를 통해 확인하시기 바랍니다.</p>
+    </div>
+  </footer>
+
+  {{/* 관련 포스트 */}}
+  {{ partial "related-posts.html" . }}
+</article>
+{{ end }}

@@ -1,0 +1,104 @@
+{
+  "blogs": [
+    {
+      "id": "tax-yearend",
+      "name": "연말정산 가이드",
+      "slug": "tax-yearend",
+      "domain": "tax-yearend.pages.dev",
+      "topic": "연말정산",
+      "region": "전국",
+      "demographic": "직장인",
+      "keywords": ["연말정산", "소득공제", "세액공제", "월세공제", "의료비공제", "5월 확정신고", "경정청구", "홈택스", "연말정산 환급"],
+      "sources": [
+        "https://www.nts.go.kr/",
+        "https://www.moef.go.kr/",
+        "https://www.gov.kr/"
+      ],
+      "gaId": "",
+      "adsenseId": "",
+      "naverBlogId": "",
+      "postsPerDay": 2,
+      "publishHours": [9, 10, 11, 14, 15, 16, 17, 18, 19, 20],
+      "enabled": true
+    },
+    {
+      "id": "unemployment",
+      "name": "실업급여 안내소",
+      "slug": "unemployment",
+      "domain": "unemployment-kr.pages.dev",
+      "topic": "실업급여",
+      "region": "전국",
+      "demographic": "���직자",
+      "keywords": ["실업급여", "고용보험", "구직급여", "실업급여 신청", "실업급여 조건", "실업급여 금액", "워크넷"],
+      "sources": [
+        "https://www.ei.go.kr/",
+        "https://www.moel.go.kr/"
+      ],
+      "gaId": "",
+      "adsenseId": "",
+      "naverBlogId": "",
+      "postsPerDay": 2,
+      "publishHours": [9, 11, 14, 16, 18],
+      "enabled": false
+    },
+    {
+      "id": "youth-policy",
+      "name": "청년정책 플러스",
+      "slug": "youth-policy",
+      "domain": "youth-policy-kr.pages.dev",
+      "topic": "청년정책",
+      "region": "전국",
+      "demographic": "청년(19-34세)",
+      "keywords": ["청년정책", "청년수당", "청년월세지원", "청년내일저축", "청년도약계좌", "청년전세대출"],
+      "sources": [
+        "https://www.youthcenter.go.kr/",
+        "https://www.gov.kr/"
+      ],
+      "gaId": "",
+      "adsenseId": "",
+      "naverBlogId": "",
+      "postsPerDay": 2,
+      "publishHours": [10, 12, 15, 17, 19],
+      "enabled": false
+    },
+    {
+      "id": "earned-income-credit",
+      "name": "근로장려금 가이드",
+      "slug": "earned-income-credit",
+      "domain": "eitc-kr.pages.dev",
+      "topic": "근로장려금",
+      "region": "전국",
+      "demographic": "저소득 근로자",
+      "keywords": ["근로장려금", "자녀장려금", "EITC 신청", "근로장려금 조건", "근로장려금 금액", "5월 신청"],
+      "sources": [
+        "https://www.nts.go.kr/"
+      ],
+      "gaId": "",
+      "adsenseId": "",
+      "naverBlogId": "",
+      "postsPerDay": 2,
+      "publishHours": [9, 11, 14, 16, 18],
+      "enabled": false
+    },
+    {
+      "id": "housing-subscription",
+      "name": "주택청약 길잡이",
+      "slug": "housing-subscription",
+      "domain": "housing-kr.pages.dev",
+      "topic": "주택청약",
+      "region": "전국",
+      "demographic": "무주택자",
+      "keywords": ["주택청약", "청약통장", "청약홈", "분양정보", "특별공급", "일반공급", "청약가점"],
+      "sources": [
+        "https://www.applyhome.co.kr/",
+        "https://www.molit.go.kr/"
+      ],
+      "gaId": "",
+      "adsenseId": "",
+      "naverBlogId": "",
+      "postsPerDay": 2,
+      "publishHours": [10, 12, 15, 17, 19],
+      "enabled": false
+    }
+  ]
+}

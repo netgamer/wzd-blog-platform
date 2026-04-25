@@ -1,0 +1,66 @@
+name: Build and Deploy
+
+on:
+  push:
+    paths:
+      - 'sites/*/content/**'
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      blog_id:
+        description: 'Blog ID to build (leave empty for all)'
+        required: false
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      blogs: ${{ steps.detect.outputs.blogs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: detect
+        name: Detect changed blogs
+        run: |
+          if [ -n "${{ github.event.inputs.blog_id }}" ]; then
+            echo "blogs=[\"${{ github.event.inputs.blog_id }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Find which blog directories had content changes
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'sites/*/content/' | \
+              sed 's|sites/\([^/]*\)/.*|\1|' | sort -u | \
+              jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "blogs=${CHANGED}" >> $GITHUB_OUTPUT
+          fi
+          echo "Blogs to build: $(cat $GITHUB_OUTPUT)"
+
+  build-deploy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.blogs != '[]' && needs.detect-changes.outputs.blogs != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        blog: ${{ fromJson(needs.detect-changes.outputs.blogs) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.147.4'
+          extended: true
+
+      - name: Build ${{ matrix.blog }}
+        run: |
+          hugo --source sites/${{ matrix.blog }} \
+               --themesDir ${{ github.workspace }}/themes \
+               --destination ${{ github.workspace }}/public/${{ matrix.blog }} \
+               -F --minify
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public/${{ matrix.blog }} --project-name=${{ matrix.blog }}

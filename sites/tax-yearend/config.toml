@@ -1,0 +1,43 @@
+baseURL = 'https://tax-yearend.pages.dev/'
+languageCode = 'ko'
+title = '연말정산 가이드 - 소득공제부터 환급까지'
+theme = 'wzd-gov-theme'
+[pagination]
+  pagerSize = 10
+enableRobotsTXT = true
+canonifyURLs = true
+
+[params]
+  description = '연말정산, 소득공제, 세액공제, 5월 확정신고 등 직장인을 위한 세금 환급 정보를 알기 쉽게 안내합니다.'
+  author = '세금가이드'
+  gaId = ''
+  adsenseId = ''
+  keywords = ['연말정산', '소득공제', '세액공제', '5월 확정신고', '홈택스', '환급']
+
+[taxonomies]
+  category = 'categories'
+  tag = 'tags'
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[outputs]
+  home = ['HTML', 'RSS']
+  section = ['HTML', 'RSS']
+
+[sitemap]
+  changefreq = 'daily'
+  priority = 0.7
+
+[related]
+  threshold = 80
+  includeNewer = true
+  toLower = true
+  [[related.indices]]
+    name = 'tags'
+    weight = 100
+  [[related.indices]]
+    name = 'categories'
+    weight = 80

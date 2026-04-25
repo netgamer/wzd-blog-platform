@@ -1,0 +1,8 @@
+public/
+node_modules/
+.env.local
+.hugo_build.lock
+resources/_gen/
+*.swp
+*.swo
+.DS_Store

@@ -1,0 +1,14 @@
+{{ $related := .Site.RegularPages.Related . | first 3 }}
+{{ if $related }}
+<section class="related-posts">
+  <h3>관련 글</h3>
+  <div class="related-list">
+    {{ range $related }}
+    <a href="{{ .Permalink }}" class="related-card">
+      <span class="related-title">{{ .Title }}</span>
+      <time>{{ .Date.Format "2006.01.02" }}</time>
+    </a>
+    {{ end }}
+  </div>
+</section>
+{{ end }}

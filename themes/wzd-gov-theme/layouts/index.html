@@ -1,0 +1,29 @@
+{{ define "main" }}
+<section class="home-hero">
+  <h1>{{ .Site.Title }}</h1>
+  <p>{{ .Site.Params.description }}</p>
+</section>
+
+<section class="home-latest">
+  <h2>최신 글</h2>
+  <div class="post-list">
+    {{ range first 10 .Site.RegularPages }}
+    <article class="post-card">
+      {{ if .Params.image }}
+      <a href="{{ .Permalink }}" class="post-card-image">
+        <img src="{{ .Params.image }}" alt="{{ .Title }}" loading="lazy">
+      </a>
+      {{ end }}
+      <div class="post-card-content">
+        <h2 class="post-card-title"><a href="{{ .Permalink }}">{{ .Title }}</a></h2>
+        <p class="post-card-excerpt">{{ .Description | default (.Summary | plainify | truncate 150) }}</p>
+        <div class="post-card-meta">
+          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006.01.02" }}</time>
+          {{ range .Params.categories }}<span class="category">{{ . }}</span>{{ end }}
+        </div>
+      </div>
+    </article>
+    {{ end }}
+  </div>
+</section>
+{{ end }}

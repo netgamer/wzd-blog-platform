@@ -1,0 +1,13 @@
+{
+  "name": "wzd-blog-platform",
+  "version": "1.0.0",
+  "description": "Automated Korean government policy blog platform",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-post.mjs",
+    "build": "bash scripts/build.sh",
+    "build:tax": "bash scripts/build.sh tax-yearend",
+    "serve:tax": "hugo server --source sites/tax-yearend --themesDir $(pwd)/themes -F -D"
+  },
+  "private": true
+}

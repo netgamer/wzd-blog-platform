@@ -1,0 +1,57 @@
+name: Daily Post Generation
+
+on:
+  # Hourly 9AM-6PM KST (= 0AM-9AM UTC)
+  schedule:
+    - cron: '0 0-9 * * *'
+  workflow_dispatch:
+    inputs:
+      blog_id:
+        description: 'Blog ID (default: auto-select from registry)'
+        required: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Select blog for this hour
+        id: select
+        run: |
+          if [ -n "${{ github.event.inputs.blog_id }}" ]; then
+            echo "blog=${{ github.event.inputs.blog_id }}" >> $GITHUB_OUTPUT
+          else
+            # Round-robin: pick blog based on current hour
+            HOUR=$(date -u +%H)
+            BLOG=$(node -e "
+              const r = require('./data/blog-registry.json');
+              const enabled = r.blogs.filter(b => b.enabled);
+              const idx = ${HOUR} % enabled.length;
+              console.log(enabled[idx].id);
+            ")
+            echo "blog=${BLOG}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate post
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
+        run: |
+          node scripts/generate-post.mjs ${{ steps.select.outputs.blog }}
+
+      - name: Commit and push
+        run: |
+          git config user.name "Blog Bot"
+          git config user.email "bot@wzd.kr"
+          git add sites/*/content/posts/*.md
+          if git diff --cached --quiet; then
+            echo "No new posts to commit"
+          else
+            git commit -m "post: auto-generated for ${{ steps.select.outputs.blog }}"
+            git push
+          fi
