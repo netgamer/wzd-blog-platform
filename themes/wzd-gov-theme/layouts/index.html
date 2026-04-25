@@ -7,7 +7,7 @@
 <section class="home-latest">
   <h2>최신 글</h2>
   <div class="post-list">
-    {{ range first 10 .Site.RegularPages }}
+    {{ range first 10 (where .Site.RegularPages "Section" "posts") }}
     <article class="post-card">
       {{ if .Params.image }}
       <a href="{{ .Permalink }}" class="post-card-image">
