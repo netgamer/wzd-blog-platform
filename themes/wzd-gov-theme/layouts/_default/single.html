@@ -9,7 +9,7 @@
       {{ with .Params.author }}<span class="post-author" itemprop="author">{{ . }}</span>{{ end }}
       {{ if .Params.categories }}
       <span class="post-categories">
-        {{ range .Params.categories }}<a href="/categories/{{ . | urlize }}/">{{ . }}</a> {{ end }}
+        {{ range .Params.categories }}<a href="{{ print "categories/" (. | urlize) "/" | relURL }}">{{ . }}</a> {{ end }}
       </span>
       {{ end }}
     </div>
@@ -17,7 +17,7 @@
 
   {{ if .Params.image }}
   <figure class="post-hero">
-    <img src="{{ .Params.image }}" alt="{{ .Title }}" loading="lazy" itemprop="image">
+    <img src="{{ .Params.image | relURL }}" alt="{{ .Title }}" loading="lazy" itemprop="image">
   </figure>
   {{ end }}
 
@@ -44,7 +44,7 @@
   <footer class="post-footer">
     {{ if .Params.tags }}
     <div class="post-tags">
-      {{ range .Params.tags }}<a href="/tags/{{ . | urlize }}/" class="tag">#{{ . }}</a> {{ end }}
+      {{ range .Params.tags }}<a href="{{ print "tags/" (. | urlize) "/" | relURL }}" class="tag">#{{ . }}</a> {{ end }}
     </div>
     {{ end }}
 

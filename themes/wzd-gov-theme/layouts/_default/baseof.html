@@ -14,7 +14,7 @@
   <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
   <meta property="og:url" content="{{ .Permalink }}">
-  {{ if .Params.image }}<meta property="og:image" content="{{ .Params.image }}">{{ end }}
+  {{ if .Params.image }}<meta property="og:image" content="{{ .Params.image | absURL }}">{{ end }}
   <meta property="og:locale" content="ko_KR">
 
   {{/* Twitter Card */}}
