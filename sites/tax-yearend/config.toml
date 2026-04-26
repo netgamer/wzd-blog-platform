@@ -10,7 +10,7 @@ canonifyURLs = true
 [params]
   description = '종합소득세, 연말정산, 실업급여, 청년지원금, 근로장려금, 문화의날 등 한국 정책과 생활 정보를 쉽고 빠르게 안내합니다.'
   author = '정책가이드'
-  gaId = ''
+  gaId = 'G-X1VVEB9LME'
   adsenseId = ''
   keywords = ['한국 정책', '지원금', '종합소득세', '연말정산', '실업급여', '청년정책', '근로장려금', '문화의날']
 
