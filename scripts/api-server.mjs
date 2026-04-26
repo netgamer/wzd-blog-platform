@@ -26,15 +26,19 @@ const TELEGRAM_CHAT_ID = '876899791';
 
 async function notifyTelegram(message) {
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    // Remove markdown formatting, use plain text for reliability
+    const cleanMsg = message.replace(/\*/g, '').replace(/_/g, '');
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: 'Markdown'
+        text: cleanMsg
       })
     });
+    const data = await res.json();
+    if (!data.ok) console.warn('[telegram] Send failed:', data.description);
+    else console.log('[telegram] Notification sent');
   } catch (e) {
     console.warn('[telegram] Notification failed:', e.message);
   }
