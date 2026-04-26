@@ -152,7 +152,8 @@ async function researchTopic(topic) {
   console.log(`[research] Researching: ${topic}`);
 
   // Search for related articles
-  const urls = await searchWeb(`${topic} 2026 신청방법 조건 금액`);
+  const searchSuffix = CATEGORIES[getCurrentCategory()]?.searchSuffix || '2026 총정리';
+  const urls = await searchWeb(`${topic} ${searchSuffix}`);
 
   // Fetch content from top results
   const results = await Promise.all(
@@ -174,16 +175,80 @@ async function researchTopic(topic) {
   };
 }
 
-// --- Google Trends ---
+// --- 3 Content Categories (rotate hourly) ---
 
-const POLICY_KEYWORDS = [
-  '종합소득세', '연말정산', '실업급여', '청년정책', '근로장려금',
-  '지원금', '문화의날', '근로자의날', '주택청약', '출산지원금',
-  '경정청구', '세액공제', '소득공제', '청년도약계좌', '국민연금',
-  '건강보험', '주거급여', '에너지바우처', '자녀장려금', '교육급여',
-  '기초연금', '실업급여 신청', '청년월세', '전세대출', '부가가치세'
-];
+const CATEGORIES = {
+  // 카테고리 1: 정책/뉴스 (이재명정부, 새 정책, 정치 이슈)
+  policy: {
+    name: '정책·뉴스',
+    keywords: [
+      '이재명 정부', '새 정책', '국정과제', '국회', '대통령',
+      '교육부', '국방부', '외교부', '법무부', '행정안전부',
+      '디지털 뉴딜', '탄소중립', '저출산 대책', '부동산 정책',
+      '최저임금', '공공주택', '지방자치', '규제 완화', '공정경제'
+    ],
+    trendTerms: ['정부', '정책', '대통령', '국회', '장관', '법안', '개혁', '예산', '선거'],
+    searchSuffix: '정부 정책 뉴스 2026',
+    systemPrompt: `한국 정부 정책과 시사 뉴스를 쉽고 객관적으로 전달하는 기자형 블로거입니다.
+- 객관적 팩트 중심 서술, 찬반 의견 균형있게 소개
+- 정책의 배경, 주요 내용, 국민 영향을 체계적으로 정리
+- 표와 타임라인 활용`
+  },
 
+  // 카테고리 2: 지원금/세금/혜택 (시민이 받을 수 있는 것들)
+  benefits: {
+    name: '지원금·혜택',
+    keywords: [
+      '근로장려금', '자녀장려금', '연말정산', '종합소득세', '경정청구',
+      '실업급여', '청년도약계좌', '청년월세지원', '출산지원금', '육아휴직',
+      '건강보험료', '국민연금', '기초연금', '주거급여', '에너지바우처',
+      '소상공인 지원', '전세대출', '주택청약', '교육급여', '긴급복지',
+      '소득공제', '세액공제', '월세공제', '의료비공제', '카드공제'
+    ],
+    trendTerms: ['지원금', '환급', '신청', '보험', '연금', '대출', '공제', '급여', '세금', '수당'],
+    searchSuffix: '신청방법 조건 금액 2026',
+    systemPrompt: `한국 정부의 지원금/세금/혜택 제도를 친근하고 상세하게 안내하는 전문 블로거입니다.
+- 신청 대상, 자격 조건, 금액을 표로 정리
+- 온라인 신청 단계를 5단계로 상세히 설명
+- "이런 분이 받을 수 있어요" 식의 친근한 안내
+- 꿀팁과 주의사항 포함`
+  },
+
+  // 카테고리 3: 생활정보/명소/계절 (데이트, 가족나들이, 계절명소)
+  lifestyle: {
+    name: '생활·명소',
+    keywords: [],  // 월별로 동적 생성
+    trendTerms: ['명소', '축제', '여행', '맛집', '카페', '데이트', '캠핑', '공원', '해수욕장', '드라이브'],
+    searchSuffix: '추천 명소 가볼만한곳 2026',
+    systemPrompt: `한국 생활정보, 여행, 명소를 생생하게 소개하는 라이프스타일 블로거입니다.
+- 구체적인 장소명, 주소, 운영시간, 입장료 포함
+- "이런 분에게 추천" 섹션 (데이트, 가족, 혼자 등)
+- 사진 포인트, 주차 정보, 맛집 팁 포함
+- 계절감 있는 생동감 있는 묘사`
+  }
+};
+
+// 월별 생활 키워드 (계절에 맞는 콘텐츠)
+function getLifestyleKeywords() {
+  const month = new Date().getMonth() + 1;
+  const seasonal = {
+    1:  ['겨울 여행지', '스키장 추천', '온천 명소', '새해 일출 명소', '실내 데이트'],
+    2:  ['발렌타인 데이트', '매화 명소', '실내 놀거리', '겨울 축제', '눈꽃 명소'],
+    3:  ['봄꽃 명소', '벚꽃 개화시기', '봄나들이', '졸업여행', '등산 코스 추천'],
+    4:  ['벚꽃 명소', '철쭉 명소', '봄 데이트', '아이와 갈만한곳', '공원 피크닉'],
+    5:  ['어린이날 가볼만한곳', '어버이날 선물', '장미축제', '계곡 명소', '봄 캠핑'],
+    6:  ['여름 물놀이', '계곡 추천', '해수욕장 개장', '수국 명소', '워터파크'],
+    7:  ['해수욕장 추천', '여름 휴가지', '물놀이 명소', '여름 캠핑', '바다 드라이브'],
+    8:  ['피서지 추천', '계곡 물놀이', '해외여행 대안', '여름 맛집', '빙수 맛집'],
+    9:  ['가을 단풍', '코스모스 명소', '억새 명소', '가을 축제', '가을 데이트'],
+    10: ['단풍 명소', '가을 드라이브', '핑크뮬리', '할로윈 행사', '가을 캠핑'],
+    11: ['단풍 끝물', '겨울 준비', '김장 시기', '수능 응원', '초겨울 여행'],
+    12: ['크리스마스 데이트', '연말 여행', '겨울 축제', '눈 오는 명소', '스키장 오픈']
+  };
+  return seasonal[month] || seasonal[4];
+}
+
+// Google Trends
 async function fetchGoogleTrendsKR() {
   try {
     const url = 'https://trends.google.com/trending/rss?geo=KR';
@@ -202,27 +267,44 @@ async function fetchGoogleTrendsKR() {
   }
 }
 
-function findPolicyTrend(trends) {
-  // 1. Find trends matching policy keywords
+// Find topic matching category
+function findTopicForCategory(trends, category) {
+  const cat = CATEGORIES[category];
+
+  // Lifestyle: use seasonal keywords
+  if (category === 'lifestyle') {
+    cat.keywords = getLifestyleKeywords();
+  }
+
+  // 1. Match trends to category keywords
   for (const trend of trends) {
-    for (const kw of POLICY_KEYWORDS) {
+    for (const kw of cat.keywords) {
       if (trend.includes(kw) || kw.includes(trend)) {
-        return { topic: trend, source: 'google-trends', matchedKeyword: kw };
+        return { topic: trend, source: 'google-trends', category, matchedKeyword: kw };
       }
     }
   }
-  // 2. Check for general policy-related terms
-  const policyTerms = ['세금', '환급', '신청', '지원', '보험', '연금', '대출', '공제', '급여', '정책'];
+
+  // 2. Match trends to general terms
   for (const trend of trends) {
-    for (const term of policyTerms) {
+    for (const term of cat.trendTerms) {
       if (trend.includes(term)) {
-        return { topic: trend, source: 'google-trends-related', matchedKeyword: term };
+        return { topic: trend, source: 'google-trends-related', category, matchedKeyword: term };
       }
     }
   }
-  // 3. Fallback to random keyword
-  const kw = POLICY_KEYWORDS[Math.floor(Math.random() * POLICY_KEYWORDS.length)];
-  return { topic: kw, source: 'keyword-fallback', matchedKeyword: kw };
+
+  // 3. Fallback to random keyword from category
+  const keywords = category === 'lifestyle' ? getLifestyleKeywords() : cat.keywords;
+  const kw = keywords[Math.floor(Math.random() * keywords.length)];
+  return { topic: kw, source: 'keyword-fallback', category, matchedKeyword: kw };
+}
+
+// Get current category based on hour rotation
+function getCurrentCategory() {
+  const hour = new Date().getHours();
+  const categories = ['policy', 'benefits', 'lifestyle'];
+  return categories[hour % 3];
 }
 
 // --- API Routes ---
@@ -235,8 +317,9 @@ app.get('/api/health', (req, res) => {
 // Get current Google Trends
 app.get('/api/trends', async (req, res) => {
   const trends = await fetchGoogleTrendsKR();
-  const policyMatch = findPolicyTrend(trends);
-  res.json({ trends: trends.slice(0, 10), policyMatch, allTrends: trends });
+  const category = getCurrentCategory();
+  const match = findTopicForCategory(trends, category);
+  res.json({ trends: trends.slice(0, 10), currentCategory: category, match, allTrends: trends });
 });
 
 // List available blogs
@@ -254,14 +337,19 @@ app.post('/api/generate', async (req, res) => {
   if (!blogConfig) return res.status(404).json({ error: 'Blog not found' });
 
   try {
+    // Determine category (rotate or manual)
+    const category = req.body.category || getCurrentCategory();
+    const cat = CATEGORIES[category] || CATEGORIES.benefits;
+
     // Auto-select topic from Google Trends if not provided
     let topicTitle = topic;
     let topicSource = 'manual';
 
     if (!topicTitle) {
+      console.log(`[generate] Category: ${cat.name} (${category})`);
       console.log('[generate] Fetching Google Trends KR...');
       const trends = await fetchGoogleTrendsKR();
-      const match = findPolicyTrend(trends);
+      const match = findTopicForCategory(trends, category);
       topicTitle = match.topic;
       topicSource = match.source;
       console.log(`[generate] Topic from ${topicSource}: ${topicTitle} (matched: ${match.matchedKeyword})`);
@@ -277,9 +365,59 @@ app.post('/api/generate', async (req, res) => {
     // 2. Generate blog post in TWO parts for longer content
     console.log(`[generate] Writing post part 1 with ${research.count} sources...`);
 
-    const systemPrompt = `당신은 한국 정부 정책을 전문적이면서도 쉽게 설명하는 블로그 전문 작가입니다.
+    const systemPrompt = `${cat.systemPrompt}
 존댓말 사용. 전문용어는 괄호 설명. 표(테이블) 활용. 마크다운 ##부터 시작.
-구체적 금액/날짜/비율 포함. 최대한 길고 상세하게 작성.`;
+구체적인 수치/날짜/장소 포함. 최대한 길고 상세하게 작성.`;
+
+    // Category-specific part prompts
+    const partPrompts = {
+      policy: {
+        part1: `1. 정책/뉴스의 배경과 맥락 (3문단 이상)
+2. 주요 내용 정리 - 핵심 포인트 5가지
+3. 국민에게 미치는 영향 - 긍정적/부정적 측면`,
+        part2: `1. 전문가 의견 및 분석
+2. 향후 전망과 일정
+3. 관련 정책 비교 (표로 정리)
+4. 시민이 알아야 할 점 5가지
+5. 자주 묻는 질문(FAQ) 5개
+
+**FAQ는 반드시 아래 형식으로 작성:**
+**Q: 질문내용?**
+
+A: 답변내용.`
+      },
+      benefits: {
+        part1: `1. 제도/정책의 개요와 목적 (3문단 이상)
+2. 신청 대상 및 자격 조건 - 표로 정리 (소득기준, 나이, 가구 등)
+3. 지원 금액 또는 혜택 상세 - 표로 정리 (항목별 금액)`,
+        part2: `1. 신청 방법 - 온라인 (1단계~5단계 상세히) + 오프라인 방법
+2. 신청 기간 및 일정 (월별 정리)
+3. 주의사항 및 꿀팁 (5개 이상)
+4. 자주 묻는 질문(FAQ) 5개
+
+**FAQ는 반드시 아래 형식으로 작성:**
+**Q: 질문내용?**
+
+A: 답변내용.`
+      },
+      lifestyle: {
+        part1: `1. 소개 및 왜 지금 가야 하는지 (계절감 있게, 3문단)
+2. 추천 명소 TOP 5~7곳 - 각 명소별 (이름, 위치, 특징, 입장료, 운영시간)
+3. 명소별 추천 대상 표 (데이트/가족/혼자/친구)`,
+        part2: `1. 방문 꿀팁 (주차, 혼잡시간, 준비물 등 5가지 이상)
+2. 주변 맛집/카페 추천 3곳
+3. 추천 코스 (반나절/하루 코스)
+4. 주의사항 (날씨, 예약 등)
+5. 자주 묻는 질문(FAQ) 5개
+
+**FAQ는 반드시 아래 형식으로 작성:**
+**Q: 질문내용?**
+
+A: 답변내용.`
+      }
+    };
+
+    const prompts = partPrompts[category] || partPrompts.benefits;
 
     const part1 = await generateWithGroq(systemPrompt,
       `주제: ${topicTitle}
@@ -288,9 +426,7 @@ app.post('/api/generate', async (req, res) => {
 ${research.text.slice(0, 2500)}
 
 위 자료를 바탕으로 블로그 포스트의 전반부를 작성하세요:
-1. 제도/정책의 개요와 목적 (3문단 이상)
-2. 신청 대상 및 자격 조건 - 표로 정리 (소득기준, 나이, 가구 등)
-3. 지원 금액 또는 혜택 상세 - 표로 정리 (항목별 금액)
+${prompts.part1}
 
 각 섹션을 최대한 상세하게 작성. 프론트매터 없이 본문만.`
     );
@@ -305,10 +441,7 @@ ${research.text.slice(0, 2500)}
 ${research.text.slice(0, 2500)}
 
 블로그 포스트의 후반부를 작성하세요:
-1. 신청 방법 - 온라인 (1단계~5단계 상세히) + 오프라인 방법
-2. 신청 기간 및 일정 (월별 정리)
-3. 주의사항 및 꿀팁 (5개 이상)
-4. 자주 묻는 질문(FAQ) 5개 (Q&A 형식)
+${prompts.part2}
 
 각 섹션을 최대한 상세하게 작성. 프론트매터 없이 본문만.`
     );
@@ -557,18 +690,14 @@ async function generateImageViaCDP(job) {
 // --- Hourly Scheduler ---
 
 let schedulerRunning = false;
-const PUBLISH_HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // KST
 
 async function hourlyTask() {
   const now = new Date();
   const kstHour = (now.getUTCHours() + 9) % 24;
+  const category = getCurrentCategory();
+  const catName = CATEGORIES[category]?.name || category;
 
-  if (!PUBLISH_HOURS.includes(kstHour)) {
-    console.log(`[cron] ${kstHour}시 - 발행 시간 아님 (${PUBLISH_HOURS.join(',')}시에 발행)`);
-    return;
-  }
-
-  console.log(`\n[cron] ===== ${now.toISOString()} (KST ${kstHour}시) 자동 포스트 생성 시작 =====`);
+  console.log(`\n[cron] ===== ${now.toISOString()} (KST ${kstHour}시) [${catName}] 자동 포스트 생성 =====`);
 
   try {
     // 1. Generate post
@@ -631,7 +760,19 @@ app.post('/api/cron/run', async (req, res) => {
 });
 
 app.get('/api/cron/status', (req, res) => {
-  res.json({ running: schedulerRunning, publishHours: PUBLISH_HOURS, completed: completed.length });
+  const category = getCurrentCategory();
+  const catName = CATEGORIES[category]?.name || category;
+  res.json({
+    running: schedulerRunning,
+    schedule: '24/7 매시간',
+    currentCategory: `${catName} (${category})`,
+    nextCategories: [0,1,2].map(i => {
+      const h = (new Date().getHours() + i) % 24;
+      const c = ['policy','benefits','lifestyle'][h % 3];
+      return `${h}시: ${CATEGORIES[c].name}`;
+    }),
+    completed: completed.length
+  });
 });
 
 // --- Start ---
