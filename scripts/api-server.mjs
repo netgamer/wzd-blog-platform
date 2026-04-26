@@ -18,7 +18,8 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = dirname(__dirname);
+const PROJECT_ROOT = '\\\\wsl$\\Ubuntu\\home\\netgamer\\.openclaw\\workspace\\code\\wzd-blog-platform';
+const PROJECT_ROOT_WSL = '/home/netgamer/.openclaw/workspace/code/wzd-blog-platform';
 const PORT = 3456;
 
 // Load .env.local
@@ -65,7 +66,7 @@ async function generateWithGroq(systemPrompt, userPrompt) {
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
-        max_tokens: 3000
+        max_tokens: 8000
       })
     });
 
@@ -81,11 +82,161 @@ async function generateWithGroq(systemPrompt, userPrompt) {
   throw new Error('Groq: max retries');
 }
 
+// --- Web Research ---
+
+async function searchWeb(query, numResults = 5) {
+  console.log(`[research] Searching: ${query}`);
+  try {
+    // DuckDuckGo HTML search (no API key needed)
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' 신청 방법 조건 2026')}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(10000)
+    });
+    const html = await res.text();
+
+    // Extract result URLs
+    const urls = [...html.matchAll(/href="\/\/duckduckgo\.com\/l\/\?uddg=(.*?)&/g)]
+      .map(m => decodeURIComponent(m[1]))
+      .filter(u => u.startsWith('http'))
+      .slice(0, numResults);
+
+    console.log(`[research] Found ${urls.length} URLs`);
+    return urls;
+  } catch (e) {
+    console.warn('[research] Search failed:', e.message);
+    // Fallback: Google search via scraping
+    try {
+      const gUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=ko&num=5`;
+      const gRes = await fetch(gUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(10000)
+      });
+      const gHtml = await gRes.text();
+      const gUrls = [...gHtml.matchAll(/href="\/url\?q=(.*?)&/g)]
+        .map(m => decodeURIComponent(m[1]))
+        .filter(u => u.startsWith('http') && !u.includes('google.com'))
+        .slice(0, numResults);
+      console.log(`[research] Google fallback: ${gUrls.length} URLs`);
+      return gUrls;
+    } catch {
+      return [];
+    }
+  }
+}
+
+async function fetchPageContent(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10000)
+    });
+    const html = await res.text();
+
+    // Strip HTML tags, get text content
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 3000); // limit per page
+
+    return { url, text, success: true };
+  } catch (e) {
+    return { url, text: '', success: false, error: e.message };
+  }
+}
+
+async function researchTopic(topic) {
+  console.log(`[research] Researching: ${topic}`);
+
+  // Search for related articles
+  const urls = await searchWeb(`${topic} 2026 신청방법 조건 금액`);
+
+  // Fetch content from top results
+  const results = await Promise.all(
+    urls.slice(0, 5).map(url => fetchPageContent(url))
+  );
+
+  const successResults = results.filter(r => r.success && r.text.length > 200);
+  console.log(`[research] Fetched ${successResults.length}/${urls.length} pages`);
+
+  // Combine research material
+  const researchText = successResults
+    .map((r, i) => `[출처 ${i + 1}] ${r.url}\n${r.text.slice(0, 2000)}`)
+    .join('\n\n---\n\n');
+
+  return {
+    sources: successResults.map(r => r.url),
+    text: researchText,
+    count: successResults.length
+  };
+}
+
+// --- Google Trends ---
+
+const POLICY_KEYWORDS = [
+  '종합소득세', '연말정산', '실업급여', '청년정책', '근로장려금',
+  '지원금', '문화의날', '근로자의날', '주택청약', '출산지원금',
+  '경정청구', '세액공제', '소득공제', '청년도약계좌', '국민연금',
+  '건강보험', '주거급여', '에너지바우처', '자녀장려금', '교육급여',
+  '기초연금', '실업급여 신청', '청년월세', '전세대출', '부가가치세'
+];
+
+async function fetchGoogleTrendsKR() {
+  try {
+    const url = 'https://trends.google.com/trending/rss?geo=KR';
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10000)
+    });
+    const xml = await res.text();
+    const titles = [...xml.matchAll(/<title><!\[CDATA\[(.+?)\]\]><\/title>/g)]
+      .map(m => m[1])
+      .filter(t => t !== 'Daily Search Trends');
+    return titles.slice(0, 30);
+  } catch (e) {
+    console.warn('[trends] Google Trends fetch failed:', e.message);
+    return [];
+  }
+}
+
+function findPolicyTrend(trends) {
+  // 1. Find trends matching policy keywords
+  for (const trend of trends) {
+    for (const kw of POLICY_KEYWORDS) {
+      if (trend.includes(kw) || kw.includes(trend)) {
+        return { topic: trend, source: 'google-trends', matchedKeyword: kw };
+      }
+    }
+  }
+  // 2. Check for general policy-related terms
+  const policyTerms = ['세금', '환급', '신청', '지원', '보험', '연금', '대출', '공제', '급여', '정책'];
+  for (const trend of trends) {
+    for (const term of policyTerms) {
+      if (trend.includes(term)) {
+        return { topic: trend, source: 'google-trends-related', matchedKeyword: term };
+      }
+    }
+  }
+  // 3. Fallback to random keyword
+  const kw = POLICY_KEYWORDS[Math.floor(Math.random() * POLICY_KEYWORDS.length)];
+  return { topic: kw, source: 'keyword-fallback', matchedKeyword: kw };
+}
+
 // --- API Routes ---
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', queue: queue.length, completed: completed.length });
+});
+
+// Get current Google Trends
+app.get('/api/trends', async (req, res) => {
+  const trends = await fetchGoogleTrendsKR();
+  const policyMatch = findPolicyTrend(trends);
+  res.json({ trends: trends.slice(0, 10), policyMatch, allTrends: trends });
 });
 
 // List available blogs
@@ -98,34 +249,88 @@ app.get('/api/blogs', (req, res) => {
 app.post('/api/generate', async (req, res) => {
   const { blogId, topic } = req.body;
   const registry = getRegistry();
-  const blogConfig = registry.blogs.find(b => b.id === (blogId || 'tax-yearend'));
+  const blogConfig = registry.blogs.find(b => b.id === (blogId || 'policy-guide'));
 
   if (!blogConfig) return res.status(404).json({ error: 'Blog not found' });
 
   try {
-    const topicTitle = topic || blogConfig.keywords[Math.floor(Math.random() * blogConfig.keywords.length)];
+    // Auto-select topic from Google Trends if not provided
+    let topicTitle = topic;
+    let topicSource = 'manual';
 
-    // 1. Generate blog post
-    console.log(`[generate] Creating post for ${blogConfig.id}: ${topicTitle}`);
+    if (!topicTitle) {
+      console.log('[generate] Fetching Google Trends KR...');
+      const trends = await fetchGoogleTrendsKR();
+      const match = findPolicyTrend(trends);
+      topicTitle = match.topic;
+      topicSource = match.source;
+      console.log(`[generate] Topic from ${topicSource}: ${topicTitle} (matched: ${match.matchedKeyword})`);
+    }
 
-    const content = await generateWithGroq(
-      `한국 정부 정책을 쉽고 친근하게 설명하는 블로그 작가. 존댓말 사용. 전문용어 괄호 설명. 표 활용. 마크다운 ##부터 시작. 1500-2500자.`,
-      `주제: ${topicTitle}\n키워드: ${blogConfig.keywords.join(', ')}\n\n${blogConfig.topic} 관련 블로그 포스트 작성. 프론트매터 없이 본문만.`
-    );
+    // 1. Web Research - 관련 기사 5개 검색 + 내용 수집
+    console.log(`[generate] Researching: ${topicTitle}`);
+    const research = await researchTopic(topicTitle);
+    console.log(`[generate] Research done: ${research.count} sources collected`);
 
     await new Promise(r => setTimeout(r, 2000));
 
+    // 2. Generate blog post in TWO parts for longer content
+    console.log(`[generate] Writing post part 1 with ${research.count} sources...`);
+
+    const systemPrompt = `당신은 한국 정부 정책을 전문적이면서도 쉽게 설명하는 블로그 전문 작가입니다.
+존댓말 사용. 전문용어는 괄호 설명. 표(테이블) 활용. 마크다운 ##부터 시작.
+구체적 금액/날짜/비율 포함. 최대한 길고 상세하게 작성.`;
+
+    const part1 = await generateWithGroq(systemPrompt,
+      `주제: ${topicTitle}
+
+참고 자료:
+${research.text.slice(0, 2500)}
+
+위 자료를 바탕으로 블로그 포스트의 전반부를 작성하세요:
+1. 제도/정책의 개요와 목적 (3문단 이상)
+2. 신청 대상 및 자격 조건 - 표로 정리 (소득기준, 나이, 가구 등)
+3. 지원 금액 또는 혜택 상세 - 표로 정리 (항목별 금액)
+
+각 섹션을 최대한 상세하게 작성. 프론트매터 없이 본문만.`
+    );
+
+    await new Promise(r => setTimeout(r, 3000));
+
+    console.log(`[generate] Writing post part 2...`);
+    const part2 = await generateWithGroq(systemPrompt,
+      `주제: ${topicTitle}
+
+참고 자료:
+${research.text.slice(0, 2500)}
+
+블로그 포스트의 후반부를 작성하세요:
+1. 신청 방법 - 온라인 (1단계~5단계 상세히) + 오프라인 방법
+2. 신청 기간 및 일정 (월별 정리)
+3. 주의사항 및 꿀팁 (5개 이상)
+4. 자주 묻는 질문(FAQ) 5개 (Q&A 형식)
+
+각 섹션을 최대한 상세하게 작성. 프론트매터 없이 본문만.`
+    );
+
+    const content = part1 + '\n\n' + part2;
+    console.log(`[generate] Total content: ${content.length} chars`);
+
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 3. Generate title
     const title = await generateWithGroq(
-      'SEO 제목 생성기. 제목만 출력.',
-      `다음 글의 SEO 제목 1개 (30-50자): ${content.slice(0, 300)}`
+      'SEO 제목 생성기. 제목만 출력. 따옴표 없이.',
+      `다음 글의 SEO 최적화 제목 1개 (25-45자, 핵심 키워드 포함): ${content.slice(0, 500)}`
     );
     const cleanTitle = title.trim().replace(/^["']|["']$/g, '').replace(/^\d+\.\s*/, '');
 
     await new Promise(r => setTimeout(r, 2000));
 
+    // 4. Generate excerpt
     const excerpt = await generateWithGroq(
-      '요약 생성기. 요약만 출력.',
-      `2-3문장으로 요약: ${content.slice(0, 800)}`
+      '요약 생성기. 2-3문장 요약만 출력.',
+      `2-3문장으로 핵심 요약: ${content.slice(0, 1000)}`
     );
 
     // 2. Create slug and filename
@@ -134,10 +339,7 @@ app.post('/api/generate', async (req, res) => {
     const filename = `${date}-${slug}.md`;
     const imageFilename = `${slug}.png`;
 
-    // 3. Save post (with placeholder image)
-    const postsDir = join(PROJECT_ROOT, 'sites', blogConfig.slug, 'content', 'posts');
-    mkdirSync(postsDir, { recursive: true });
-
+    // 3. Prepare post content (DO NOT save yet - wait for image)
     const frontmatter = `---
 title: "${cleanTitle.replace(/"/g, '\\"')}"
 date: ${date}
@@ -148,8 +350,8 @@ author: "${blogConfig.name}"
 image: "/images/${imageFilename}"
 ---`;
 
-    writeFileSync(join(postsDir, filename), `${frontmatter}\n\n${content}\n`, 'utf-8');
-    console.log(`[generate] Post saved: ${filename}`);
+    const postContent = `${frontmatter}\n\n${content}\n`;
+    console.log(`[generate] Post prepared (NOT saved yet, waiting for image): ${filename}`);
 
     // 4. Create image prompt
     const imagePrompt = `한국 ${blogConfig.topic} 관련 "${cleanTitle}" 주제의 인포그래픽 이미지를 만들어줘.
@@ -157,12 +359,13 @@ image: "/images/${imageFilename}"
 핵심 내용을 3-4개 카드/단계로 시각화. 각 단계에 아이콘 포함.
 한국 정부 정책 안내 인포그래픽 느낌. 가로 16:9 비율. 1200x630 사이즈.`;
 
-    // 5. Queue image job
+    // 5. Queue image job (post content stored in memory until image is ready)
     const job = {
       id: Date.now().toString(),
       blogId: blogConfig.id,
       blogSlug: blogConfig.slug,
       postFilename: filename,
+      postContent,
       imageFilename,
       imagePrompt,
       title: cleanTitle,
@@ -195,23 +398,30 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file' });
 
   try {
-    // Save image to Hugo static dir
+    // 1. Save image
     const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
     mkdirSync(imagesDir, { recursive: true });
     const imagePath = join(imagesDir, job.imageFilename);
     writeFileSync(imagePath, req.file.buffer);
-
     console.log(`[upload] Image saved: ${imagePath} (${(req.file.buffer.length / 1024).toFixed(0)}KB)`);
 
-    // Update job status
+    // 2. NOW save the post (only after image is ready)
+    const postsDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'content', 'posts');
+    mkdirSync(postsDir, { recursive: true });
+    writeFileSync(join(postsDir, job.postFilename), job.postContent, 'utf-8');
+    console.log(`[upload] Post saved: ${job.postFilename}`);
+
+    // 3. Update job status
     job.status = 'completed';
     job.completedAt = new Date().toISOString();
+    delete job.postContent; // free memory
     completed.push(job);
 
-    // Auto-deploy
+    // 4. Deploy (post + image together)
+    console.log(`[upload] Deploying post + image together...`);
     deployBlog(job.blogSlug);
 
-    res.json({ success: true, message: 'Image saved and deploy triggered' });
+    res.json({ success: true, message: 'Post + image saved and deployed' });
   } catch (err) {
     console.error('[upload] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -238,9 +448,9 @@ app.get('/api/jobs', (req, res) => {
 function deployBlog(blogSlug) {
   console.log(`[deploy] Building and pushing ${blogSlug}...`);
   try {
-    execSync(`cd ${PROJECT_ROOT} && git add -A && git commit -m "post: auto-generated for ${blogSlug}" && git push`, {
+    execSync(`wsl -- bash -c "export PATH=\\$HOME/.nvm/versions/node/v25.8.2/bin:\\$PATH && cd ${PROJECT_ROOT_WSL} && git add -A && git commit -m 'post: auto-generated for ${blogSlug}' && git push"`, {
       stdio: 'pipe',
-      timeout: 30000
+      timeout: 60000
     });
     console.log(`[deploy] Pushed to GitHub. GitHub Actions will build and deploy.`);
   } catch (err) {
