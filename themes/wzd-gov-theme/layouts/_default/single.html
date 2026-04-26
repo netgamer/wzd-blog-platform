@@ -21,6 +21,23 @@
   </figure>
   {{ end }}
 
+  {{/* 공유 버튼 */}}
+  <div class="share-buttons">
+    <span class="share-label">공유하기</span>
+    <a href="https://twitter.com/intent/tweet?url={{ .Permalink }}&text={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-twitter" title="트위터 공유">𝕏</a>
+    <a href="https://www.facebook.com/sharer/sharer.php?u={{ .Permalink }}" target="_blank" rel="noopener" class="share-btn share-facebook" title="페이스북 공유">f</a>
+    <a href="https://social-plugins.line.me/lineit/share?url={{ .Permalink }}" target="_blank" rel="noopener" class="share-btn share-line" title="라인 공유">L</a>
+    <button class="share-btn share-copy" onclick="navigator.clipboard.writeText('{{ .Permalink }}').then(()=>this.textContent='복사됨!').catch(()=>{})" title="링크 복사">🔗</button>
+  </div>
+
+  {{/* 목차 (TOC) */}}
+  {{ if .TableOfContents }}
+  <details class="toc" open>
+    <summary>📋 목차</summary>
+    {{ .TableOfContents }}
+  </details>
+  {{ end }}
+
   {{/* AdSense - 본문 상단 */}}
   {{ if .Site.Params.adsenseId }}
   <div class="ad-unit ad-top">
@@ -48,10 +65,39 @@
     </div>
     {{ end }}
 
+    {{/* 하단 공유 버튼 */}}
+    <div class="share-buttons share-bottom">
+      <span class="share-label">이 글이 도움이 되셨나요? 공유해주세요!</span>
+      <a href="https://twitter.com/intent/tweet?url={{ .Permalink }}&text={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-twitter">𝕏</a>
+      <a href="https://www.facebook.com/sharer/sharer.php?u={{ .Permalink }}" target="_blank" rel="noopener" class="share-btn share-facebook">f</a>
+      <button class="share-btn share-copy" onclick="navigator.clipboard.writeText('{{ .Permalink }}').then(()=>this.textContent='복사됨!')">🔗 링크복사</button>
+    </div>
+
     <div class="post-disclaimer">
       <p>본 글은 정보 제공 목적으로 작성되었으며, 정확한 내용은 해당 기관 공식 홈페이지를 통해 확인하시기 바랍니다.</p>
     </div>
   </footer>
+
+  {{/* 댓글 (Giscus - GitHub Discussions 기반, 무료) */}}
+  <section class="comments">
+    <h3>💬 댓글</h3>
+    <script src="https://giscus.app/client.js"
+      data-repo="netgamer/wzd-blog-platform"
+      data-repo-id=""
+      data-category="Comments"
+      data-category-id=""
+      data-mapping="pathname"
+      data-strict="0"
+      data-reactions-enabled="1"
+      data-emit-metadata="0"
+      data-input-position="top"
+      data-theme="light"
+      data-lang="ko"
+      crossorigin="anonymous"
+      async>
+    </script>
+    <noscript>댓글을 보려면 JavaScript를 활성화해주세요.</noscript>
+  </section>
 
   {{/* 관련 포스트 */}}
   {{ partial "related-posts.html" . }}
