@@ -458,15 +458,194 @@ function deployBlog(blogSlug) {
   }
 }
 
+// --- CDP Image Generation (ChatGPT via Chrome) ---
+
+async function generateImageViaCDP(job) {
+  const { WebSocket } = await import('ws');
+  const CDP_URL = 'http://localhost:18800';
+
+  try {
+    // Check Chrome is running
+    const tabsRes = await fetch(`${CDP_URL}/json`);
+    const tabs = await tabsRes.json();
+    const tab = tabs.find(t => t.url.includes('chatgpt.com'));
+    if (!tab) {
+      console.log('[cdp] No ChatGPT tab found. Open Chrome with ChatGPT.');
+      return false;
+    }
+
+    const ws = new WebSocket(tab.webSocketDebuggerUrl);
+    await new Promise((r, j) => { ws.on('open', r); ws.on('error', j); });
+
+    const cdpCmd = (method, params = {}) => new Promise((resolve, reject) => {
+      const id = Math.floor(Math.random() * 999999);
+      const h = (data) => { const msg = JSON.parse(data.toString()); if (msg.id === id) { ws.removeListener('message', h); msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result); } };
+      ws.on('message', h);
+      ws.send(JSON.stringify({ id, method, params }));
+      setTimeout(() => { ws.removeListener('message', h); reject(new Error('CDP timeout')); }, 30000);
+    });
+
+    const ev = async (expr) => {
+      const r = await cdpCmd('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+      return r.result?.value;
+    };
+
+    await cdpCmd('Runtime.enable');
+
+    // Navigate to new chat
+    console.log('[cdp] Opening new ChatGPT conversation...');
+    await cdpCmd('Page.navigate', { url: 'https://chatgpt.com/' });
+    await new Promise(r => setTimeout(r, 5000));
+
+    const before = await ev(`document.querySelectorAll('img').length`);
+
+    // Type prompt
+    const escaped = job.imagePrompt.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    await ev(`(() => { const el = document.querySelector('#prompt-textarea') || document.querySelector('[contenteditable]'); if (!el) return 'no input'; el.focus(); el.innerHTML = \`<p>${escaped}</p>\`; el.dispatchEvent(new Event('input', { bubbles: true })); return 'ok'; })()`);
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Send
+    await ev(`(() => { const btn = document.querySelector('[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]'); if (btn) { btn.click(); return 'ok'; } return 'no btn'; })()`);
+    console.log('[cdp] Prompt sent, waiting for image...');
+
+    // Wait for image (max 3 min)
+    let imageFound = false;
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      const count = await ev(`document.querySelectorAll('img').length`);
+      if (count > before) { imageFound = true; await new Promise(r => setTimeout(r, 3000)); break; }
+    }
+
+    if (!imageFound) { ws.close(); console.log('[cdp] No image generated'); return false; }
+
+    // Extract via canvas
+    const base64 = await ev(`(async () => { const imgs = document.querySelectorAll('img'); let t = null; for (const img of imgs) { if (img.naturalWidth > 200 && !img.src.includes('avatar') && !img.src.includes('icon')) t = img; } if (!t) return null; if (!t.complete) await new Promise(r => { t.onload = r; setTimeout(r, 5000); }); const c = document.createElement('canvas'); c.width = t.naturalWidth; c.height = t.naturalHeight; c.getContext('2d').drawImage(t, 0, 0); return c.toDataURL('image/png').split(',')[1]; })()`);
+
+    ws.close();
+
+    if (!base64 || base64.length < 100) { console.log('[cdp] Failed to extract image'); return false; }
+
+    // Save image
+    const buf = Buffer.from(base64, 'base64');
+    const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
+    mkdirSync(imagesDir, { recursive: true });
+    writeFileSync(join(imagesDir, job.imageFilename), buf);
+    console.log(`[cdp] Image saved: ${job.imageFilename} (${(buf.length / 1024).toFixed(0)}KB)`);
+
+    // Save post
+    const postsDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'content', 'posts');
+    mkdirSync(postsDir, { recursive: true });
+    writeFileSync(join(postsDir, job.postFilename), job.postContent, 'utf-8');
+    console.log(`[cdp] Post saved: ${job.postFilename}`);
+
+    // Update job
+    job.status = 'completed';
+    job.completedAt = new Date().toISOString();
+    delete job.postContent;
+    completed.push(job);
+
+    // Deploy
+    deployBlog(job.blogSlug);
+    return true;
+
+  } catch (e) {
+    console.error('[cdp] Error:', e.message);
+    return false;
+  }
+}
+
+// --- Hourly Scheduler ---
+
+let schedulerRunning = false;
+const PUBLISH_HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // KST
+
+async function hourlyTask() {
+  const now = new Date();
+  const kstHour = (now.getUTCHours() + 9) % 24;
+
+  if (!PUBLISH_HOURS.includes(kstHour)) {
+    console.log(`[cron] ${kstHour}시 - 발행 시간 아님 (${PUBLISH_HOURS.join(',')}시에 발행)`);
+    return;
+  }
+
+  console.log(`\n[cron] ===== ${now.toISOString()} (KST ${kstHour}시) 자동 포스트 생성 시작 =====`);
+
+  try {
+    // 1. Generate post
+    const genRes = await fetch(`http://localhost:${PORT}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const genData = await genRes.json();
+
+    if (!genData.success) {
+      console.error('[cron] Post generation failed:', genData.error);
+      return;
+    }
+
+    console.log(`[cron] Post generated: "${genData.post.title}"`);
+
+    // 2. Generate image via CDP
+    const pendingJob = queue.find(j => j.id === genData.job.id);
+    if (pendingJob) {
+      console.log('[cron] Generating image via ChatGPT CDP...');
+      const imgResult = await generateImageViaCDP(pendingJob);
+      if (imgResult) {
+        console.log('[cron] ✅ Post + image published successfully!');
+      } else {
+        console.log('[cron] ⚠️ Image generation failed. Post queued for Chrome Extension.');
+      }
+    }
+
+  } catch (e) {
+    console.error('[cron] Error:', e.message);
+  }
+
+  console.log(`[cron] ===== 완료 =====\n`);
+}
+
+// Cron control endpoints
+app.post('/api/cron/start', (req, res) => {
+  if (schedulerRunning) return res.json({ message: 'Already running' });
+  schedulerRunning = true;
+  // Run every hour at :00
+  const now = new Date();
+  const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000;
+  setTimeout(() => {
+    hourlyTask();
+    setInterval(hourlyTask, 60 * 60 * 1000); // every hour
+  }, msUntilNextHour);
+  console.log(`[cron] Scheduler started. Next run in ${Math.floor(msUntilNextHour / 60000)}분`);
+  res.json({ success: true, message: `Scheduler started. Next run in ${Math.floor(msUntilNextHour / 60000)} min` });
+});
+
+app.post('/api/cron/stop', (req, res) => {
+  schedulerRunning = false;
+  res.json({ success: true, message: 'Scheduler stopped' });
+});
+
+app.post('/api/cron/run', async (req, res) => {
+  res.json({ success: true, message: 'Running now...' });
+  hourlyTask();
+});
+
+app.get('/api/cron/status', (req, res) => {
+  res.json({ running: schedulerRunning, publishHours: PUBLISH_HOURS, completed: completed.length });
+});
+
 // --- Start ---
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Blog API Server running at http://localhost:${PORT}`);
   console.log(`\nEndpoints:`);
-  console.log(`  GET  /api/health    - Health check`);
-  console.log(`  GET  /api/blogs     - List blogs`);
-  console.log(`  POST /api/generate  - Generate post + queue image`);
-  console.log(`  GET  /api/queue     - Get pending image jobs`);
-  console.log(`  POST /api/upload    - Upload completed image`);
-  console.log(`  GET  /api/jobs      - All jobs status`);
-  console.log(`\nChrome Extension polls /api/queue for image generation tasks`);
+  console.log(`  GET  /api/health       - Health check`);
+  console.log(`  POST /api/generate     - Generate post + queue image`);
+  console.log(`  GET  /api/queue        - Pending image jobs`);
+  console.log(`  POST /api/upload       - Upload completed image`);
+  console.log(`  POST /api/cron/start   - Start hourly scheduler`);
+  console.log(`  POST /api/cron/stop    - Stop scheduler`);
+  console.log(`  POST /api/cron/run     - Run now (manual trigger)`);
+  console.log(`  GET  /api/cron/status  - Scheduler status`);
+  console.log(`\n⏰ 매시간 자동: POST /api/cron/start`);
+  console.log(`🔥 즉시 실행: POST /api/cron/run`);
 });
