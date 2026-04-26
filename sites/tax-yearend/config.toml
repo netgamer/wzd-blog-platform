@@ -1,6 +1,6 @@
 baseURL = 'https://netgamer.github.io/wzd-blog-platform/'
 languageCode = 'ko'
-title = '연말정산 가이드 - 소득공제부터 환급까지'
+title = '오늘의 정책 - 한국 정책·지원금·생활 가이드'
 theme = 'wzd-gov-theme'
 [pagination]
   pagerSize = 10
@@ -8,11 +8,11 @@ enableRobotsTXT = true
 canonifyURLs = true
 
 [params]
-  description = '연말정산, 소득공제, 세액공제, 5월 확정신고 등 직장인을 위한 세금 환급 정보를 알기 쉽게 안내합니다.'
-  author = '세금가이드'
+  description = '종합소득세, 연말정산, 실업급여, 청년지원금, 근로장려금, 문화의날 등 한국 정책과 생활 정보를 쉽고 빠르게 안내합니다.'
+  author = '정책가이드'
   gaId = ''
   adsenseId = ''
-  keywords = ['연말정산', '소득공제', '세액공제', '5월 확정신고', '홈택스', '환급']
+  keywords = ['한국 정책', '지원금', '종합소득세', '연말정산', '실업급여', '청년정책', '근로장려금', '문화의날']
 
 [taxonomies]
   category = 'categories'
