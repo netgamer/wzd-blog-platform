@@ -19,6 +19,26 @@ import { execSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = '\\\\wsl$\\Ubuntu\\home\\netgamer\\.openclaw\\workspace\\code\\wzd-blog-platform';
+
+// --- Telegram Notification ---
+const TELEGRAM_BOT_TOKEN = '8714352426:AAEwgv61r2Rb9GM2NqejO14IclpDyBb8MU8';
+const TELEGRAM_CHAT_ID = '876899791';
+
+async function notifyTelegram(message) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch (e) {
+    console.warn('[telegram] Notification failed:', e.message);
+  }
+}
 const PROJECT_ROOT_WSL = '/home/netgamer/.openclaw/workspace/code/wzd-blog-platform';
 const PORT = 3456;
 
@@ -554,6 +574,9 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     console.log(`[upload] Deploying post + image together...`);
     deployBlog(job.blogSlug);
 
+    // 5. Telegram notification
+    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n카테고리: ${job.blogSlug}\n파일: ${job.postFilename}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+
     res.json({ success: true, message: 'Post + image saved and deployed' });
   } catch (err) {
     console.error('[upload] Error:', err.message);
@@ -679,10 +702,15 @@ async function generateImageViaCDP(job) {
 
     // Deploy
     deployBlog(job.blogSlug);
+
+    // Notify
+    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n이미지: ✅ ChatGPT 생성\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+
     return true;
 
   } catch (e) {
     console.error('[cdp] Error:', e.message);
+    notifyTelegram(`⚠️ *이미지 생성 실패*\n\n제목: ${job.title}\n에러: ${e.message}\n\n→ Chrome Extension으로 수동 처리 필요`);
     return false;
   }
 }
@@ -773,6 +801,14 @@ app.get('/api/cron/status', (req, res) => {
     }),
     completed: completed.length
   });
+});
+
+// --- Notification endpoint (for Claude Code manager reports) ---
+app.post('/api/notify', (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'message required' });
+  notifyTelegram(message);
+  res.json({ success: true });
 });
 
 // --- Start ---
