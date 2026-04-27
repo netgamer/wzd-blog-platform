@@ -13,7 +13,7 @@
   --font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
 
   /* Responsive max-widths */
-  --max-width-content: 780px;   /* 본문 읽기 최적 너비 */
+  --max-width-content: 860px;   /* 본문 읽기 최적 너비 */
   --max-width-wide: 1100px;     /* PC 전체 레이아웃 */
 }
 
@@ -106,8 +106,9 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 /* === Single Post Layout === */
 /* 포스트 페이지는 본문 중심, 이미지는 full-width */
 .post {
-  max-width: var(--max-width-content);
+  max-width: var(--max-width-wide);
   margin: 0 auto;
+  padding: 0 2rem;
 }
 
 .post-header { margin-bottom: 1.75rem; }
@@ -146,6 +147,7 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 
 /* === Post Content Typography === */
 .post-content {
+  max-width: var(--max-width-content);
   font-size: 1.05rem;
   line-height: 1.85;
 }
