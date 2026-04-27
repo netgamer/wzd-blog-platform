@@ -245,6 +245,60 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 .related-title { font-weight: 500; color: var(--color-text); font-size: 0.95rem; }
 .related-card time { font-size: 0.8rem; color: var(--color-text-light); white-space: nowrap; flex-shrink: 0; }
 
+/* === Callout Boxes === */
+.callout {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  line-height: 1.7;
+  font-size: 0.97rem;
+}
+.callout strong { display: block; margin-bottom: 0.35rem; font-size: 1rem; }
+
+.callout.tip {
+  background: #ecfdf5;
+  border-left: 4px solid #10b981;
+  color: #065f46;
+}
+.callout.tip strong { color: #047857; }
+
+.callout.warning {
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  color: #78350f;
+}
+.callout.warning strong { color: #b45309; }
+
+.callout.info {
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  color: #1e3a5f;
+}
+.callout.info strong { color: #1d4ed8; }
+
+/* === Inline Post Images === */
+.post-inline-image {
+  margin: 2rem 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+}
+.post-inline-image img {
+  width: 100%;
+  height: auto;
+  max-height: 480px;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+}
+
+/* === Section Divider === */
+.post-content hr {
+  border: none;
+  border-top: 2px dashed var(--color-border);
+  margin: 2.5rem 0;
+}
+
 /* === Ad Units === */
 .ad-unit { margin: 1.5rem 0; text-align: center; min-height: 100px; }
 
