@@ -1,6 +1,6 @@
 baseURL = 'https://netgamer.github.io/wzd-blog-platform/'
 languageCode = 'ko'
-title = '오늘의 정책 - 한국 정책·지원금·생활 가이드'
+title = '오늘의 트렌드 - 실시간 이슈·정책·생활 가이드'
 theme = 'wzd-gov-theme'
 [pagination]
   pagerSize = 10
