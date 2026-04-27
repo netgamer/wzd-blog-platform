@@ -82,25 +82,29 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 /* === Post Card (List) === */
 .post-list { display: flex; flex-direction: column; gap: 1.5rem; }
 
+.post-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.5rem; }
+
 .post-card {
   display: flex;
-  gap: 1.5rem;
-  padding: 1.5rem;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 12px;
+  overflow: hidden;
   transition: box-shadow 0.2s, transform 0.2s;
 }
-.post-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); transform: translateY(-2px); }
+.post-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.12); transform: translateY(-3px); }
 
-.post-card-image { flex-shrink: 0; width: 220px; height: 148px; overflow: hidden; border-radius: 10px; }
-.post-card-image img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+.post-card-image { width: 100%; height: 220px; overflow: hidden; }
+.post-card-image img { width: 100%; height: 100%; object-fit: cover; }
 
-.post-card-content { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.4rem; }
-.post-card-title { font-size: 1.15rem; font-weight: 700; line-height: 1.5; }
+.post-card-content { padding: 1rem 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.post-card-title { font-size: 1.15rem; font-weight: 800; line-height: 1.4; }
 .post-card-title a { color: var(--color-text); }
 .post-card-title a:hover { color: var(--color-primary); text-decoration: none; }
-.post-card-excerpt { font-size: 0.92rem; color: var(--color-text-light); line-height: 1.65; }
-.post-card-meta { font-size: 0.82rem; color: var(--color-text-light); display: flex; gap: 0.75rem; }
+.post-card-excerpt { font-size: 0.85rem; color: var(--color-text-light); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.post-card-meta { font-size: 0.8rem; color: var(--color-text-light); display: flex; gap: 0.75rem; }
 .post-card-meta .category { color: var(--color-accent); font-weight: 500; }
 
 /* === Single Post Layout === */
@@ -408,7 +412,8 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   .container { padding: 0 1.5rem; }
   .post-title { font-size: 1.75rem; }
   .post-hero img { max-height: 420px; }
-  .post-card-image { width: 180px; height: 130px; }
+  .post-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .post-card-image { height: 200px; }
 }
 
 /* 모바일 (~ 767px) */
@@ -436,8 +441,8 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   .post-content h3 { font-size: 1.1rem; }
 
   /* 카드 세로 배치 */
-  .post-card { flex-direction: column; gap: 1rem; padding: 1rem; }
-  .post-card-image { width: 100%; height: 200px; }
+  .post-list { grid-template-columns: 1fr; }
+  .post-card-image { height: 180px; }
 
   /* 홈 히어로 */
   .home-hero { padding: 1.5rem 0 1.25rem; }
