@@ -14,7 +14,7 @@
 
   /* Responsive max-widths */
   --max-width-content: 860px;   /* 본문 읽기 최적 너비 */
-  --max-width-wide: 1100px;     /* PC 전체 레이아웃 */
+  --max-width-wide: 1400px;     /* PC 전체 레이아웃 */
 }
 
 html { font-size: 16px; scroll-behavior: smooth; }
@@ -131,7 +131,7 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 /* === Post Card (List) === */
 .post-list { display: flex; flex-direction: column; gap: 1.5rem; }
 
-.post-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.5rem; }
+.post-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
 
 .post-card {
   display: flex;
@@ -376,7 +376,7 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   align-items: flex-start;
 }
 .main-content { flex: 1; min-width: 0; }
-.sidebar { width: 280px; flex-shrink: 0; display: none; }
+.sidebar { width: 320px; flex-shrink: 0; display: none; }
 
 @media (min-width: 1200px) {
   .sidebar { display: block; }
