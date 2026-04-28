@@ -55,7 +55,7 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 /* === Header === */
 .site-header {
   border-bottom: 1px solid var(--color-border);
-  padding: 1rem 0;
+  padding: 0;
   position: sticky;
   top: 0;
   background: rgba(255,255,255,0.97);
@@ -63,18 +63,67 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   z-index: 100;
 }
 
-.site-header .container { display: flex; align-items: center; justify-content: space-between; }
-
-.site-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--color-text);
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 52px;
 }
-.site-title:hover { text-decoration: none; color: var(--color-primary); }
 
-.site-nav { display: flex; gap: 1.5rem; }
-.site-nav a { color: var(--color-text-light); font-size: 0.95rem; font-weight: 500; }
-.site-nav a:hover { color: var(--color-primary); text-decoration: none; }
+.menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--color-text);
+  padding: 0.25rem;
+}
+
+.site-logo {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--color-text);
+  white-space: nowrap;
+  letter-spacing: -0.03em;
+}
+.site-logo:hover { text-decoration: none; color: var(--color-primary); }
+
+.site-nav {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.site-nav::-webkit-scrollbar { display: none; }
+.site-nav a {
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.site-nav a:hover { background: #f3f4f6; color: var(--color-primary); text-decoration: none; }
+
+.mobile-menu {
+  display: none;
+  flex-direction: column;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.5rem 1rem 1rem;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  padding: 0.6rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  border-bottom: 1px solid #f3f4f6;
+}
+.mobile-menu a:hover { color: var(--color-primary); text-decoration: none; }
 
 /* === Main Content === */
 .site-main { padding: 2.5rem 0; min-height: 60vh; }
@@ -497,10 +546,9 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   .container-content { padding: 0 1rem; }
 
   /* 헤더 */
-  .site-header { padding: 0.75rem 0; }
-  .site-title { font-size: 1rem; }
-  .site-nav { gap: 0.75rem; }
-  .site-nav a { font-size: 0.82rem; }
+  .menu-toggle { display: block; }
+  .site-nav { display: none; }
+  .site-logo { font-size: 1.1rem; }
 
   /* 포스트 제목 */
   .post-title { font-size: 1.5rem; }

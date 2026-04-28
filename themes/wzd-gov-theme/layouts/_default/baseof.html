@@ -39,15 +39,22 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="container">
-      <a href="{{ "" | relURL }}" class="site-title">{{ .Site.Title }}</a>
+    <div class="container header-inner">
+      <button class="menu-toggle" onclick="document.querySelector('.mobile-menu').classList.toggle('open')" aria-label="메뉴">☰</button>
+      <a href="{{ "" | relURL }}" class="site-logo">오늘의 트렌드</a>
       <nav class="site-nav">
-        <a href="{{ "" | relURL }}">홈</a>
-        <a href="{{ "posts/" | relURL }}">글 목록</a>
-        <a href="{{ "categories/" | relURL }}">카테고리</a>
-        <a href="{{ "about/" | relURL }}">소개</a>
+        <a href="{{ "" | relURL }}">최신글</a>
+        {{ range .Site.Taxonomies.categories }}
+        <a href="{{ print "categories/" (. | urlize) "/" | relURL }}">{{ .Page.Title }}</a>
+        {{ end }}
       </nav>
     </div>
+    <nav class="mobile-menu">
+      <a href="{{ "" | relURL }}">최신글</a>
+      {{ range .Site.Taxonomies.categories }}
+      <a href="{{ print "categories/" (. | urlize) "/" | relURL }}">{{ .Page.Title }}</a>
+      {{ end }}
+    </nav>
   </header>
 
   <main class="site-main">
