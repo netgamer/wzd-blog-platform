@@ -291,8 +291,21 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 .post-inline-image img {
   width: 100%;
   height: auto;
-  max-height: 480px;
-  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+}
+
+/* === Mid-article Image (1:1 square) === */
+.post-mid-image {
+  margin: 2.5rem auto;
+  max-width: 600px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+}
+.post-mid-image img {
+  width: 100%;
+  height: auto;
   border-radius: 12px;
   display: block;
 }
