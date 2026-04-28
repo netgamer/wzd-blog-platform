@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>블로그 관리자</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#f5f5f5;color:#333}
+.login-wrap{display:flex;justify-content:center;align-items:center;height:100vh}
+.login-box{background:#fff;padding:2rem;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);width:320px;text-align:center}
+.login-box h2{margin-bottom:1rem}
+.login-box input{width:100%;padding:.7rem;border:1px solid #ddd;border-radius:8px;font-size:1rem;margin-bottom:.75rem;text-align:center}
+.login-box button{width:100%;padding:.7rem;background:#1a56db;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer}
+.conn-err{color:#dc2626;font-size:.85rem;margin-top:.5rem;display:none}
+.wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
+h1{font-size:1.4rem;margin-bottom:1rem}
+h2{font-size:1.15rem;margin:1.5rem 0 .75rem;color:#1a56db}
+.tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:2px solid #e5e7eb}
+.tab{padding:.6rem 1.25rem;cursor:pointer;font-weight:600;font-size:.95rem;color:#6b7280;border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab.active{color:#1a56db;border-bottom-color:#1a56db}
+.panel{display:none}.panel.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.card{background:#fff;padding:1.25rem;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.card-label{font-size:.8rem;color:#6b7280;margin-bottom:.25rem}
+.card-value{font-size:1.5rem;font-weight:800}
+.card-sub{font-size:.75rem;color:#999;margin-top:.2rem}
+.run-info{background:#fff;padding:1.25rem;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:1.5rem}
+.run-info table{width:100%;font-size:.9rem}
+.run-info td{padding:.3rem .5rem;vertical-align:top}
+.run-info td:first-child{font-weight:600;color:#6b7280;width:120px}
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.75rem;font-weight:700}
+.badge-ok{background:#ecfdf5;color:#059669}
+.badge-fail{background:#fef2f2;color:#dc2626}
+.badge-run{background:#eff6ff;color:#1a56db}
+.events{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);max-height:300px;overflow-y:auto}
+.event{padding:.6rem 1rem;border-bottom:1px solid #f3f4f6;font-size:.85rem;display:flex;justify-content:space-between}
+.event:last-child{border:none}
+.event-type{font-size:.75rem;color:#999}
+.btn{padding:.5rem 1rem;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:600}
+.btn-blue{background:#1a56db;color:#fff}
+.btn-red{background:#dc2626;color:#fff}
+.btn-green{background:#059669;color:#fff}
+.btn-gray{background:#6b7280;color:#fff}
+.btn:hover{opacity:.85}
+.actions{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+table.posts{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+table.posts th,table.posts td{padding:.65rem .75rem;text-align:left;border-bottom:1px solid #eee;font-size:.85rem}
+table.posts th{background:#f9fafb;font-weight:700}
+table.posts tr:hover td{background:#f0f7ff}
+.cb{width:18px;height:18px;cursor:pointer}
+.msg{padding:.75rem;border-radius:8px;margin-bottom:1rem;display:none}
+.msg.ok{display:block;background:#ecfdf5;color:#065f46;border:1px solid #10b981}
+.msg.err{display:block;background:#fef2f2;color:#991b1b;border:1px solid #f87171}
+</style>
+</head>
+<body>
+<div id="login" class="login-wrap">
+  <div class="login-box">
+    <h2>블로그 관리자</h2>
+    <input type="password" id="pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">로그인</button>
+    <div class="conn-err" id="conn-err">서버에 연결할 수 없습니다. localhost:3456이 실행 중인지 확인하세요.</div>
+  </div>
+</div>
+
+<div id="app" class="wrap" style="display:none">
+  <h1>블로그 관리자</h1>
+  <div id="msg" class="msg"></div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('dash')">대시보드</div>
+    <div class="tab" onclick="switchTab('posts')">포스트 관리</div>
+  </div>
+
+  <div id="tab-dash" class="panel active">
+    <div class="cards">
+      <div class="card"><div class="card-label">서버 상태</div><div class="card-value" id="d-status">-</div><div class="card-sub" id="d-cron"></div></div>
+      <div class="card"><div class="card-label">대기 중 텍스트</div><div class="card-value" id="d-text">0</div><div class="card-sub">Extension 처리 대기</div></div>
+      <div class="card"><div class="card-label">대기 중 이미지</div><div class="card-value" id="d-img">0</div><div class="card-sub">이미지 생성 대기</div></div>
+      <div class="card"><div class="card-label">누적 완료</div><div class="card-value" id="d-done">0</div><div class="card-sub">서버 재시작 이후</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-blue" onclick="runNow()">지금 실행</button>
+      <button class="btn btn-gray" onclick="refreshDash()">새로고침</button>
+    </div>
+    <h2>현재 실행</h2>
+    <div class="run-info"><table id="run-table"><tr><td colspan="2">로딩 중...</td></tr></table></div>
+    <h2>최근 이벤트</h2>
+    <div class="events" id="events">로딩 중...</div>
+  </div>
+
+  <div id="tab-posts" class="panel">
+    <div class="actions">
+      <button class="btn btn-red" onclick="deleteSelected()">선택 삭제</button>
+      <button class="btn btn-green" onclick="deployNow()">배포하기</button>
+      <button class="btn btn-blue" onclick="runNow()">새 포스트 생성</button>
+      <button class="btn btn-gray" onclick="loadPosts()">새로고침</button>
+    </div>
+    <table class="posts">
+      <thead><tr><th><input type="checkbox" class="cb" onclick="toggleAll(this)"></th><th>제목</th><th>날짜</th><th>카테고리</th><th>크기</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+var PW='';
+var API='http://localhost:3456';
+var dashInterval=null;
+
+function doLogin(){
+  PW=document.getElementById('pw').value;
+  document.getElementById('conn-err').style.display='none';
+  fetch(API+'/api/admin/posts?pw='+PW).then(function(r){
+    if(!r.ok)throw new Error('auth');
+    return r.json();
+  }).then(function(){
+    document.getElementById('login').style.display='none';
+    document.getElementById('app').style.display='block';
+    refreshDash();
+    dashInterval=setInterval(refreshDash,5000);
+  }).catch(function(e){
+    if(e.message==='auth')alert('비밀번호가 틀렸습니다');
+    else document.getElementById('conn-err').style.display='block';
+  });
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
+  event.target.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='posts')loadPosts();
+  if(name==='dash')refreshDash();
+}
+
+function hdr(){return{'X-Admin-Password':PW,'Content-Type':'application/json'}}
+
+function showMsg(text,ok){
+  var el=document.getElementById('msg');
+  el.className='msg '+(ok?'ok':'err');
+  el.textContent=text;
+  setTimeout(function(){el.style.display='none'},4000);
+}
+
+function refreshDash(){
+  fetch(API+'/api/dashboard').then(function(r){return r.json()}).then(function(d){
+    document.getElementById('d-status').textContent=d.health.status;
+    document.getElementById('d-cron').textContent=d.cron.running?'cron: running':'cron: stopped';
+    document.getElementById('d-text').textContent=d.counts.pendingTexts;
+    document.getElementById('d-img').textContent=d.counts.pendingImages;
+    document.getElementById('d-done').textContent=d.health.completed;
+    var r2=d.currentRun||{};
+    var badge=r2.status==='running'?'badge-run':r2.status==='failed'?'badge-fail':'badge-ok';
+    document.getElementById('run-table').innerHTML=
+      '<tr><td>상태</td><td><span class="badge '+badge+'">'+(r2.status||'-')+'</span> '+(r2.phase||'')+'</td></tr>'+
+      '<tr><td>주제</td><td>'+(r2.topicTitle||'-')+'</td></tr>'+
+      '<tr><td>카테고리</td><td>'+(r2.categoryName||r2.category||'-')+'</td></tr>'+
+      '<tr><td>제목</td><td>'+(r2.title||'-')+'</td></tr>'+
+      '<tr><td>리서치</td><td>'+(r2.researchSourceCount||0)+'개 출처</td></tr>'+
+      '<tr><td>포스트</td><td>'+(r2.postFilename||'-')+'</td></tr>'+
+      '<tr><td>시작</td><td>'+(r2.startedAt?new Date(r2.startedAt).toLocaleString('ko-KR'):'-')+'</td></tr>'+
+      (r2.error?'<tr><td>오류</td><td style="color:#dc2626">'+r2.error+'</td></tr>':'');
+    var evts=d.recentEvents||[];
+    document.getElementById('events').innerHTML=evts.slice(0,15).map(function(e){
+      return '<div class="event"><div><strong>'+e.message+'</strong><br><span class="event-type">'+e.type+'</span></div>'+
+      '<div style="white-space:nowrap;color:#999;font-size:.8rem">'+new Date(e.time).toLocaleString('ko-KR')+'</div></div>';
+    }).join('')||'<div class="event">이벤트 없음</div>';
+  }).catch(function(){});
+}
+
+function loadPosts(){
+  fetch(API+'/api/admin/posts?pw='+PW).then(function(r){return r.json()}).then(function(posts){
+    document.getElementById('tbody').innerHTML=posts.map(function(p){
+      return '<tr><td><input type="checkbox" class="cb" data-file="'+p.filename+'"></td>'+
+      '<td>'+p.title+'</td><td>'+p.date+'</td><td>'+p.category+'</td>'+
+      '<td>'+(p.size/1024).toFixed(1)+'KB</td></tr>';
+    }).join('');
+  });
+}
+
+function toggleAll(el){document.querySelectorAll('#tbody .cb').forEach(function(c){c.checked=el.checked})}
+
+function deleteSelected(){
+  var files=Array.from(document.querySelectorAll('#tbody .cb:checked')).map(function(c){return c.dataset.file});
+  if(!files.length)return alert('삭제할 포스트를 선택하세요');
+  if(!confirm(files.length+'개 포스트를 삭제하시겠습니까?'))return;
+  Promise.all(files.map(function(f){
+    return fetch(API+'/api/admin/delete',{method:'POST',headers:hdr(),body:JSON.stringify({filename:f})});
+  })).then(function(){
+    showMsg(files.length+'개 삭제 완료',true);
+    loadPosts();
+  });
+}
+
+function deployNow(){
+  fetch(API+'/api/admin/deploy',{method:'POST',headers:hdr()}).then(function(r){return r.json()}).then(function(){showMsg('배포 시작됨',true)}).catch(function(e){showMsg(e.message,false)});
+}
+
+function runNow(){
+  fetch(API+'/api/cron/run',{method:'POST'}).then(function(r){return r.json()}).then(function(){showMsg('포스트 생성 시작됨',true);setTimeout(refreshDash,2000)}).catch(function(e){showMsg(e.message,false)});
+}
+</script>
+</body>
+</html>
