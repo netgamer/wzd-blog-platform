@@ -52,6 +52,8 @@ table.posts tr:hover td{background:#f0f7ff}
 .msg{padding:.75rem;border-radius:8px;margin-bottom:1rem;display:none}
 .msg.ok{display:block;background:#ecfdf5;color:#065f46;border:1px solid #10b981}
 .msg.err{display:block;background:#fef2f2;color:#991b1b;border:1px solid #f87171}
+.thumb{width:80px;height:50px;object-fit:cover;border-radius:6px;background:#f3f4f6}
+.no-img{width:80px;height:50px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:.75rem}
 </style>
 </head>
 <body>
@@ -98,7 +100,7 @@ table.posts tr:hover td{background:#f0f7ff}
       <button class="btn btn-gray" onclick="loadPosts()">새로고침</button>
     </div>
     <table class="posts">
-      <thead><tr><th><input type="checkbox" class="cb" onclick="toggleAll(this)"></th><th>제목</th><th>날짜</th><th>카테고리</th><th>크기</th></tr></thead>
+      <thead><tr><th><input type="checkbox" class="cb" onclick="toggleAll(this)"></th><th>이미지</th><th>제목</th><th>날짜</th><th>카테고리</th><th>크기</th></tr></thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
@@ -173,7 +175,10 @@ function refreshDash(){
 function loadPosts(){
   fetch(API+'/api/admin/posts?pw='+PW).then(function(r){return r.json()}).then(function(posts){
     document.getElementById('tbody').innerHTML=posts.map(function(p){
+      var imgSrc=p.image?API+'/blog-images/'+p.image.replace('/images/',''):'';
+      var imgHtml=imgSrc?'<img class="thumb" src="'+imgSrc+'" onerror="this.outerHTML=\'<div class=no-img>-</div>\'">':'<div class="no-img">-</div>';
       return '<tr><td><input type="checkbox" class="cb" data-file="'+p.filename+'"></td>'+
+      '<td>'+imgHtml+'</td>'+
       '<td>'+p.title+'</td><td>'+p.date+'</td><td>'+p.category+'</td>'+
       '<td>'+(p.size/1024).toFixed(1)+'KB</td></tr>';
     }).join('');
