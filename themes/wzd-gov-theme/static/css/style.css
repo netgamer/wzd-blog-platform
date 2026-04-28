@@ -425,7 +425,6 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   .post-title { font-size: 1.75rem; }
   .post-hero img { }
   .post-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-  .post-card-image { height: 200px; }
 }
 
 /* 모바일 (~ 767px) */
@@ -454,7 +453,6 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 
   /* 카드 세로 배치 */
   .post-list { grid-template-columns: 1fr; }
-  .post-card-image { height: 180px; }
 
   /* 홈 히어로 */
   .home-hero { padding: 1.5rem 0 1.25rem; }
