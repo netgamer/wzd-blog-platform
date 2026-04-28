@@ -60,9 +60,10 @@ table.posts tr:hover td{background:#f0f7ff}
 <div id="login" class="login-wrap">
   <div class="login-box">
     <h2>블로그 관리자</h2>
+    <input type="text" id="server-url" placeholder="서버 주소" value="http://localhost:3456" style="font-size:.85rem">
     <input type="password" id="pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()">
     <button onclick="doLogin()">로그인</button>
-    <div class="conn-err" id="conn-err">서버에 연결할 수 없습니다. localhost:3456이 실행 중인지 확인하세요.</div>
+    <div class="conn-err" id="conn-err">서버에 연결할 수 없습니다. 서버 주소를 확인하세요.</div>
   </div>
 </div>
 
@@ -111,7 +112,15 @@ var PW='';
 var API='http://localhost:3456';
 var dashInterval=null;
 
+// Auto-detect: if not on localhost, default to empty server URL
+if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+  document.getElementById('server-url').value='';
+  document.getElementById('server-url').placeholder='서버 터널 주소 (https://xxx.trycloudflare.com)';
+}
+
 function doLogin(){
+  API=document.getElementById('server-url').value.replace(/\/$/,'');
+  if(!API){alert('서버 주소를 입력하세요');return}
   PW=document.getElementById('pw').value;
   document.getElementById('conn-err').style.display='none';
   fetch(API+'/api/admin/posts?pw='+PW).then(function(r){
