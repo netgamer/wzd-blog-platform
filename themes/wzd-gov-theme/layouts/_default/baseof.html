@@ -44,16 +44,26 @@
       <a href="{{ "" | relURL }}" class="site-logo">오늘의 트렌드</a>
       <nav class="site-nav">
         <a href="{{ "" | relURL }}">최신글</a>
-        {{ range .Site.Taxonomies.categories }}
-        <a href="{{ print "categories/" (. | urlize) "/" | relURL }}">{{ .Page.Title }}</a>
-        {{ end }}
+        <a href="{{ "categories/경제/" | relURL }}">경제</a>
+        <a href="{{ "categories/산업/" | relURL }}">산업</a>
+        <a href="{{ "categories/사회/" | relURL }}">사회</a>
+        <a href="{{ "categories/세계/" | relURL }}">세계</a>
+        <a href="{{ "categories/문화/" | relURL }}">문화</a>
+        <a href="{{ "categories/건강/" | relURL }}">건강</a>
+        <a href="{{ "categories/연예/" | relURL }}">연예</a>
+        <a href="{{ "categories/스포츠/" | relURL }}">스포츠</a>
       </nav>
     </div>
     <nav class="mobile-menu">
       <a href="{{ "" | relURL }}">최신글</a>
-      {{ range .Site.Taxonomies.categories }}
-      <a href="{{ print "categories/" (. | urlize) "/" | relURL }}">{{ .Page.Title }}</a>
-      {{ end }}
+      <a href="{{ "categories/경제/" | relURL }}">경제</a>
+      <a href="{{ "categories/산업/" | relURL }}">산업</a>
+      <a href="{{ "categories/사회/" | relURL }}">사회</a>
+      <a href="{{ "categories/세계/" | relURL }}">세계</a>
+      <a href="{{ "categories/문화/" | relURL }}">문화</a>
+      <a href="{{ "categories/건강/" | relURL }}">건강</a>
+      <a href="{{ "categories/연예/" | relURL }}">연예</a>
+      <a href="{{ "categories/스포츠/" | relURL }}">스포츠</a>
     </nav>
   </header>
 
