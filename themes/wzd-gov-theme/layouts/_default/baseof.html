@@ -51,8 +51,26 @@
   </header>
 
   <main class="site-main">
-    <div class="container">
-      {{ block "main" . }}{{ end }}
+    <div class="container layout-with-sidebar">
+      <div class="main-content">
+        {{ block "main" . }}{{ end }}
+      </div>
+      <aside class="sidebar">
+        <div class="sidebar-sticky">
+          <div class="hot-news">
+            <h3 class="hot-news-title">핫뉴스 ›</h3>
+            {{ $pages := where .Site.RegularPages "Section" "posts" }}
+            {{ range first 8 $pages.ByDate.Reverse }}
+            <a href="{{ .RelPermalink }}" class="hot-item">
+              <div class="hot-text">{{ .Title }}</div>
+              {{ if .Params.image }}
+              <img class="hot-thumb" src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">
+              {{ end }}
+            </a>
+            {{ end }}
+          </div>
+        </div>
+      </aside>
     </div>
   </main>
 
