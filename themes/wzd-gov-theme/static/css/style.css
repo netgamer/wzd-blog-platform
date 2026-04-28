@@ -144,7 +144,6 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 .post-hero img {
   width: 100%;
   height: auto;
-  max-height: 520px;
   object-fit: cover;
   border-radius: 12px;
 }
@@ -411,7 +410,7 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 @media (min-width: 768px) and (max-width: 1023px) {
   .container { padding: 0 1.5rem; }
   .post-title { font-size: 1.75rem; }
-  .post-hero img { max-height: 420px; }
+  .post-hero img { }
   .post-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
   .post-card-image { height: 200px; }
 }
@@ -433,7 +432,7 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   .post-title { font-size: 1.5rem; }
 
   /* 히어로 이미지 */
-  .post-hero img { max-height: 280px; border-radius: 8px; }
+  .post-hero img { border-radius: 8px; }
 
   /* 본문 */
   .post-content { font-size: 1rem; }
