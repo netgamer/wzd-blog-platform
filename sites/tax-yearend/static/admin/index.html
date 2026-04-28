@@ -132,8 +132,8 @@ function doLogin(){
     refreshDash();
     dashInterval=setInterval(refreshDash,5000);
   }).catch(function(e){
-    if(e.message==='auth')alert('비밀번호가 틀렸습니다');
-    else document.getElementById('conn-err').style.display='block';
+    if(e.message==='auth'){alert('비밀번호가 틀렸습니다');}
+    else{document.getElementById('conn-err').style.display='block';document.getElementById('conn-err').textContent='연결 실패: '+e.message+' (서버: '+API+')';}
   });
 }
 
