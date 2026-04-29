@@ -80,10 +80,10 @@
             {{ $pages := where .Site.RegularPages "Section" "posts" }}
             {{ range first 8 $pages.ByDate.Reverse }}
             <a href="{{ .RelPermalink }}" class="hot-item">
-              <div class="hot-text">{{ .Title }}</div>
               {{ if .Params.image }}
               <img class="hot-thumb" src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">
               {{ end }}
+              <div class="hot-desc">{{ .Description | plainify | truncate 60 }}</div>
             </a>
             {{ end }}
           </div>
