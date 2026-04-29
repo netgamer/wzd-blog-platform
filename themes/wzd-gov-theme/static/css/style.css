@@ -86,7 +86,11 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   color: var(--color-text);
   white-space: nowrap;
   letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
+.logo-icon { width: 26px; height: 26px; flex-shrink: 0; }
 .site-logo:hover { text-decoration: none; color: var(--color-primary); }
 
 .site-nav {
@@ -128,8 +132,12 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 /* === Main Content === */
 /* === Top Banner === */
 .top-banner {
+  padding: 0.75rem 0;
+}
+.top-banner .container {
   background: linear-gradient(135deg, #1a56db, #7c3aed);
-  padding: 0.9rem 0;
+  padding: 0.9rem 2rem;
+  border-radius: 10px;
   text-align: center;
 }
 .top-banner-link {
