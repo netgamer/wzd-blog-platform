@@ -161,7 +161,10 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 .post {
   max-width: var(--max-width-wide);
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 1rem;
+}
+@media (min-width: 768px) {
+  .post { padding: 0 2rem; }
 }
 
 .post-header { margin-bottom: 1.75rem; }
