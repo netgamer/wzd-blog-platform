@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://netgamer.github.io/wzd-blog-platform/sitemap.xml
