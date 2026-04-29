@@ -7,7 +7,7 @@
 <section class="home-latest">
   <h2>최신 글</h2>
   <div class="post-list">
-    {{ range first 10 (where .Site.RegularPages "Section" "posts") }}
+    {{ range first 6 (where .Site.RegularPages "Section" "posts") }}
     <article class="post-card">
       {{ if .Params.image }}
       <a href="{{ .Permalink }}" class="post-card-image">
@@ -26,4 +26,78 @@
     {{ end }}
   </div>
 </section>
+
+<section class="home-more">
+  <h2>더 많은 글</h2>
+  <div class="post-list" id="more-posts">
+    {{ range after 6 (where .Site.RegularPages "Section" "posts") }}
+    <article class="post-card lazy-post" style="display:none" data-idx="{{ .Scratch.Get "idx" }}">
+      {{ if .Params.image }}
+      <a href="{{ .Permalink }}" class="post-card-image">
+        <img data-src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">
+      </a>
+      {{ end }}
+      <div class="post-card-content">
+        <h2 class="post-card-title"><a href="{{ .Permalink }}">{{ .Title }}</a></h2>
+        <p class="post-card-excerpt">{{ .Description | default (.Summary | plainify | truncate 150) }}</p>
+        <div class="post-card-meta">
+          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006.01.02" }}</time>
+          {{ range .Params.categories }}<span class="category">{{ . }}</span>{{ end }}
+        </div>
+      </div>
+    </article>
+    {{ end }}
+  </div>
+  <div id="load-trigger" style="height:1px"></div>
+  <div id="load-spinner" style="text-align:center;padding:2rem;display:none;color:#999">글을 불러오는 중...</div>
+  <div id="load-end" style="text-align:center;padding:2rem;display:none;color:#ccc">모든 글을 불러왔습니다</div>
+</section>
+
+<script>
+(function(){
+  var posts = document.querySelectorAll('.lazy-post');
+  var shown = 0;
+  var batch = 6;
+  var loading = false;
+
+  function showMore() {
+    if (loading) return;
+    var remaining = posts.length - shown;
+    if (remaining <= 0) {
+      document.getElementById('load-end').style.display = 'block';
+      document.getElementById('load-spinner').style.display = 'none';
+      return;
+    }
+    loading = true;
+    document.getElementById('load-spinner').style.display = 'block';
+
+    setTimeout(function() {
+      var end = Math.min(shown + batch, posts.length);
+      for (var i = shown; i < end; i++) {
+        posts[i].style.display = '';
+        // Load lazy images
+        var img = posts[i].querySelector('img[data-src]');
+        if (img) {
+          img.src = img.getAttribute('data-src');
+          img.removeAttribute('data-src');
+        }
+      }
+      shown = end;
+      loading = false;
+      document.getElementById('load-spinner').style.display = 'none';
+      if (shown >= posts.length) {
+        document.getElementById('load-end').style.display = 'block';
+      }
+    }, 300);
+  }
+
+  // Intersection Observer for infinite scroll
+  var observer = new IntersectionObserver(function(entries) {
+    if (entries[0].isIntersecting) showMore();
+  }, { rootMargin: '400px' });
+
+  var trigger = document.getElementById('load-trigger');
+  if (trigger && posts.length > 0) observer.observe(trigger);
+})();
+</script>
 {{ end }}

@@ -1,0 +1,5 @@
+{{- $pages := .Pages -}}
+{{- $limit := 100 -}}
+[{{ range $i, $p := first $limit $pages }}{{ if $i }},{{ end }}
+{"title":{{ $p.Title | jsonify }},"url":"{{ $p.RelPermalink }}","date":"{{ $p.Date.Format "2006.01.02" }}","image":"{{ with $p.Params.image }}{{ printf "%s%s" $.Site.BaseURL (strings.TrimPrefix "/" .) }}{{ end }}","excerpt":{{ ($p.Description | default ($p.Summary | plainify | truncate 120)) | jsonify }},"categories":[{{ range $j, $c := $p.Params.categories }}{{ if $j }},{{ end }}{{ $c | jsonify }}{{ end }}]}
+{{- end }}]

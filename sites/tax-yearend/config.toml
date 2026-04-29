@@ -29,7 +29,7 @@ canonifyURLs = true
 
 [outputs]
   home = ['HTML', 'RSS']
-  section = ['HTML', 'RSS']
+  section = ['HTML', 'RSS', 'JSON']
 
 [sitemap]
   changefreq = 'daily'
