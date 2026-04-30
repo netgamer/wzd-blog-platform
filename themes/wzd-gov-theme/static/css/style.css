@@ -391,6 +391,27 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   display: block;
 }
 
+/* === 4컷 만화 === */
+.post-comic {
+  margin: 2.5rem auto;
+  max-width: 100%;
+  text-align: center;
+}
+.post-comic figcaption {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+  color: var(--color-text);
+}
+.post-comic img {
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  display: inline-block;
+}
+
 /* === Section Divider === */
 .post-content hr {
   border: none;
