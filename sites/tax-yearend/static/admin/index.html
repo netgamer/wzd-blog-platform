@@ -83,9 +83,22 @@ table.posts tr:hover td{background:#f0f7ff}
       <div class="card"><div class="card-label">대기 중 이미지</div><div class="card-value" id="d-img">0</div><div class="card-sub">이미지 생성 대기</div></div>
       <div class="card"><div class="card-label">누적 완료</div><div class="card-value" id="d-done">0</div><div class="card-sub">서버 재시작 이후</div></div>
     </div>
-    <div class="actions">
+    <div class="actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <select id="catSelect" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:0.9rem">
+        <option value="">자동 로테이션</option>
+        <option value="economy">경제</option>
+        <option value="industry">산업</option>
+        <option value="society">사회</option>
+        <option value="world">세계</option>
+        <option value="culture">문화</option>
+        <option value="health">건강</option>
+        <option value="entertainment">연예</option>
+        <option value="sports">스포츠</option>
+        <option value="it">IT</option>
+      </select>
       <button class="btn btn-blue" onclick="runNow()">지금 실행</button>
       <button class="btn btn-gray" onclick="refreshDash()">새로고침</button>
+      <span id="rotationInfo" style="font-size:0.85rem;color:#666;margin-left:8px"></span>
     </div>
     <h2>현재 실행</h2>
     <div class="run-info"><table id="run-table"><tr><td colspan="2">로딩 중...</td></tr></table></div>
@@ -219,8 +232,18 @@ function deployNow(){
 }
 
 function runNow(){
-  fetch(API+'/api/cron/run',{method:'POST'}).then(function(r){return r.json()}).then(function(){showMsg('포스트 생성 시작됨',true);setTimeout(refreshDash,2000)}).catch(function(e){showMsg(e.message,false)});
+  var cat=document.getElementById('catSelect').value;
+  var opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cat?{category:cat}:{})};
+  fetch(API+'/api/cron/run',opts).then(function(r){return r.json()}).then(function(){showMsg('포스트 생성 시작됨'+(cat?' ('+cat+')':''),true);setTimeout(refreshDash,2000)}).catch(function(e){showMsg(e.message,false)});
 }
+function updateRotationInfo(){
+  fetch(API+'/api/cron/status').then(function(r){return r.json()}).then(function(d){
+    var el=document.getElementById('rotationInfo');
+    if(el)el.innerHTML='현재 차례: <strong style="color:#1a56db">'+d.currentCategory+'</strong>';
+  }).catch(function(){});
+}
+updateRotationInfo();
+setInterval(updateRotationInfo,30000);
 </script>
 </body>
 </html>
