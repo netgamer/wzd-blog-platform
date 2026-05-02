@@ -1,4 +1,4 @@
-baseURL = 'https://netgamer.github.io/wzd-blog-platform/'
+baseURL = 'https://news.wzd.kr/'
 languageCode = 'ko'
 title = '오늘의 트렌드 - 실시간 이슈·정책·생활 가이드'
 theme = 'wzd-gov-theme'
