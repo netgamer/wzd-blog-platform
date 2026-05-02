@@ -1,6 +1,11 @@
 {{ define "main" }}
 <div class="list-page">
-  <h1 class="list-title">{{ .Title | default "글 목록" }}</h1>
+  {{ if eq .Kind "taxonomy" }}
+  <h1 class="list-title">{{ .Title }} 최신 뉴스 및 트렌드</h1>
+  <p class="list-desc">{{ .Title }} 관련 최신 이슈, 심층 분석, 트렌드를 빠르게 전달합니다.</p>
+  {{ else }}
+  <h1 class="list-title">{{ .Title | default "최신 글" }}</h1>
+  {{ end }}
 
   {{ if .Content }}
   <div class="list-description">{{ .Content }}</div>
@@ -26,7 +31,7 @@
     {{ end }}
   </div>
 
-  {{/* Pagination */}}
+  {{/* Pagination with rel prev/next */}}
   {{ template "_internal/pagination.html" . }}
 </div>
 {{ end }}

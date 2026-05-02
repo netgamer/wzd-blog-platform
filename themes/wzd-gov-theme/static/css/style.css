@@ -499,6 +499,9 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 }
 .site-footer a { color: var(--color-text-light); }
 .site-footer a:hover { color: var(--color-primary); }
+.footer-cats { margin-bottom: .75rem; display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem; }
+.footer-cats a { background: var(--color-bg-light); padding: .3rem .7rem; border-radius: 4px; font-size: .8rem; }
+.footer-cats a:hover { background: var(--color-primary); color: #fff; }
 
 /* === Pagination === */
 .pagination { display: flex; justify-content: center; gap: 0.5rem; margin-top: 2rem; flex-wrap: wrap; }

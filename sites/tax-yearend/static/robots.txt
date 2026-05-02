@@ -1,4 +1,11 @@
 User-agent: *
 Allow: /
 
+User-agent: Yeti
+Allow: /
+
+User-agent: Daum
+Allow: /
+
 Sitemap: https://netgamer.github.io/wzd-blog-platform/sitemap.xml
+Sitemap: https://news.wzd.kr/sitemap.xml
