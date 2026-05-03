@@ -55,7 +55,7 @@ image: "/images/20년-만의-포착contentreferenceoaicite0.png"
 
 
 <figure class="post-mid-image">
-  <img src="/wzd-blog-platform/images/20년-만의-포착contentreferenceoaicite0-mid.png" alt="“20년 만의 포착”…:contentReference[oaicite:0]" loading="lazy">
+  <img src="/images/20년-만의-포착contentreferenceoaicite0-mid.png" alt="“20년 만의 포착”…:contentReference[oaicite:0]" loading="lazy">
 </figure>
 
 ## 노현정이라는 인물의 상징성
@@ -192,6 +192,6 @@ image: "/images/20년-만의-포착contentreferenceoaicite0.png"
 
 <figure class="post-comic">
   <figcaption>오늘의 시사 4컷</figcaption>
-  <img src="/wzd-blog-platform/images/20년-만의-포착contentreferenceoaicite0-comic.png" alt="“20년 만의 포착”…:contentReference[oaicite:0] 4컷만화" loading="lazy">
+  <img src="/images/20년-만의-포착contentreferenceoaicite0-comic.png" alt="“20년 만의 포착”…:contentReference[oaicite:0] 4컷만화" loading="lazy">
 </figure>
 
