@@ -7,6 +7,12 @@
   <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   {{ if .IsPage }}<meta name="author" content="{{ .Params.author | default .Site.Params.author }}">{{ end }}
   <meta name="keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ delimit .Site.Params.keywords ", " }}{{ end }}">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <meta name="theme-color" content="#1a56db">
+  {{ if .IsPage }}
+  <meta name="news_keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ .Title }}{{ end }}">
+  {{ with .Params.categories }}<meta property="article:section" content="{{ index . 0 }}">{{ end }}
+  {{ end }}
 
   {{/* Naver/Daum SEO */}}
   {{ with .Site.Params.naverVerification }}<meta name="naver-site-verification" content="{{ . }}">{{ end }}
@@ -44,6 +50,7 @@
 
   {{/* Twitter Card - 이미지 포함 */}}
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@news_wzd">
   <meta name="twitter:title" content="{{ .Title }}">
   <meta name="twitter:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   {{ if .Params.image }}
@@ -116,7 +123,12 @@
           <div class="hot-news">
             <h3 class="hot-news-title">핫뉴스 ›</h3>
             {{ $pages := where .Site.RegularPages "Section" "posts" }}
-            {{ range first 8 $pages.ByDate.Reverse }}
+            {{ $validPages := slice }}
+            {{ range $pages.ByDate.Reverse }}
+              {{ $badTitle := or (findRE "\\?\\?+" .Title) (findRE "contentreference|ContentReference" .Title) }}
+              {{ if not $badTitle }}{{ $validPages = $validPages | append . }}{{ end }}
+            {{ end }}
+            {{ range first 8 $validPages }}
             <a href="{{ .RelPermalink }}" class="hot-item">
               {{ if .Params.image }}
               <img class="hot-thumb" src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">

@@ -7,7 +7,13 @@
 <section class="home-latest">
   <h2>최신 글</h2>
   <div class="post-list">
-    {{ range first 6 (where .Site.RegularPages "Section" "posts") }}
+    {{ $posts := where .Site.RegularPages "Section" "posts" }}
+    {{ $validPosts := slice }}
+    {{ range $posts.ByDate.Reverse }}
+      {{ $badTitle := or (findRE "\\?\\?+" .Title) (findRE "contentreference|ContentReference" .Title) }}
+      {{ if not $badTitle }}{{ $validPosts = $validPosts | append . }}{{ end }}
+    {{ end }}
+    {{ range first 6 $validPosts }}
     <article class="post-card">
       {{ if .Params.image }}
       <a href="{{ .Permalink }}" class="post-card-image">
@@ -30,7 +36,7 @@
 <section class="home-more">
   <h2>더 많은 글</h2>
   <div class="post-list" id="more-posts">
-    {{ range after 6 (where .Site.RegularPages "Section" "posts") }}
+    {{ range after 6 $validPosts }}
     <article class="post-card lazy-post" style="display:none" data-idx="{{ .Scratch.Get "idx" }}">
       {{ if .Params.image }}
       <a href="{{ .Permalink }}" class="post-card-image">

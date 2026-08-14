@@ -1,74 +1,75 @@
-{{ if .IsPage }}
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "NewsArticle",
-  "headline": {{ .Title | jsonify }},
-  "description": {{ (.Description | default (.Summary | plainify | truncate 160)) | jsonify }},
-  "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}",
-  "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}",
-  {{ if .Params.image }}"image": ["{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}"],{{ end }}
-  "author": {
-    "@type": "Person",
-    "name": {{ (.Params.author | default .Site.Params.author) | jsonify }}
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": {{ .Site.Title | jsonify }},
-    "url": {{ .Site.BaseURL | jsonify }}
-  },
-  "mainEntityOfPage": {
-    "@type": "WebPage",
-    "@id": {{ .Permalink | jsonify }}
-  }{{ if .Params.tags }},
-  "keywords": {{ .Params.tags | jsonify }}{{ end }}
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {"@type": "ListItem", "position": 1, "name": "홈", "item": {{ .Site.BaseURL | jsonify }}},
-    {{ range $i, $cat := .Params.categories }}
-    {"@type": "ListItem", "position": 2, "name": {{ $cat | jsonify }}, "item": {{ printf "%scategories/%s/" $.Site.BaseURL ($cat | urlize) | jsonify }}},
-    {{ end }}
-    {"@type": "ListItem", "position": 3, "name": {{ .Title | jsonify }}}
-  ]
-}
-</script>
-{{ else if .IsHome }}
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": {{ .Site.Title | jsonify }},
-  "url": {{ .Site.BaseURL | jsonify }},
-  "description": {{ .Site.Params.description | jsonify }},
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": {
-      "@type": "EntryPoint",
-      "urlTemplate": {{ printf "%s?q={search_term_string}" .Site.BaseURL | jsonify }}
-    },
-    "query-input": "required name=search_term_string"
-  }
-}
-</script>
-{{ else }}
-{{/* Category/Tag pages */}}
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "CollectionPage",
-  "name": {{ .Title | jsonify }},
-  "url": {{ .Permalink | jsonify }},
-  "description": {{ printf "%s 관련 최신 뉴스와 트렌드 분석" .Title | jsonify }},
-  "isPartOf": {
-    "@type": "WebSite",
-    "name": {{ .Site.Title | jsonify }},
-    "url": {{ .Site.BaseURL | jsonify }}
-  }
-}
-</script>
-{{ end }}
+{{- $siteName := .Site.Title -}}
+{{- $siteURL := .Site.BaseURL -}}
+{{- $siteDescription := .Site.Params.description -}}
+{{- $publisher := dict "@type" "Organization" "name" $siteName "url" $siteURL "logo" (dict "@type" "ImageObject" "url" ("images/og-default.png" | absURL)) -}}
+
+{{- if .IsPage -}}
+  {{- $description := .Description | default (.Summary | plainify | truncate 160) -}}
+  {{- $authorName := .Params.author | default .Site.Params.author | default $siteName -}}
+  {{- $article := dict
+    "@context" "https://schema.org"
+    "@type" "NewsArticle"
+    "headline" .Title
+    "description" $description
+    "datePublished" (.Date.Format "2006-01-02T15:04:05Z07:00")
+    "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00")
+    "inLanguage" "ko-KR"
+    "author" (dict "@type" "Person" "name" $authorName)
+    "publisher" $publisher
+    "mainEntityOfPage" (dict "@type" "WebPage" "@id" .Permalink)
+  -}}
+  {{- with .Params.image -}}
+    {{- $article = merge $article (dict "image" (slice (printf "%s%s" $.Site.BaseURL (strings.TrimPrefix "/" .)))) -}}
+  {{- end -}}
+  {{- with .Params.categories -}}
+    {{- $article = merge $article (dict "articleSection" (index . 0)) -}}
+  {{- end -}}
+  {{- with .Params.tags -}}
+    {{- $article = merge $article (dict "keywords" .) -}}
+  {{- end -}}
+<script type="application/ld+json">{{ $article | jsonify | safeHTML }}</script>
+
+  {{- $items := slice (dict "@type" "ListItem" "position" 1 "name" "Home" "item" $siteURL) -}}
+  {{- with .Params.categories -}}
+    {{- $cat := index . 0 -}}
+    {{- $items = $items | append (dict "@type" "ListItem" "position" 2 "name" $cat "item" (printf "%scategories/%s/" $.Site.BaseURL ($cat | urlize))) -}}
+  {{- end -}}
+  {{- $items = $items | append (dict "@type" "ListItem" "position" 3 "name" .Title "item" .Permalink) -}}
+  {{- $breadcrumb := dict "@context" "https://schema.org" "@type" "BreadcrumbList" "itemListElement" $items -}}
+<script type="application/ld+json">{{ $breadcrumb | jsonify | safeHTML }}</script>
+{{- else if .IsHome -}}
+  {{- $website := dict
+    "@context" "https://schema.org"
+    "@type" "WebSite"
+    "name" $siteName
+    "url" $siteURL
+    "description" $siteDescription
+    "inLanguage" "ko-KR"
+    "publisher" $publisher
+    "potentialAction" (dict
+      "@type" "SearchAction"
+      "target" (dict "@type" "EntryPoint" "urlTemplate" (printf "%s?q={search_term_string}" $siteURL))
+      "query-input" "required name=search_term_string"
+    )
+  -}}
+<script type="application/ld+json">{{ $website | jsonify | safeHTML }}</script>
+
+  {{- $posts := where .Site.RegularPages "Section" "posts" -}}
+  {{- $items := slice -}}
+  {{- range $i, $p := first 10 $posts.ByDate.Reverse -}}
+    {{- $items = $items | append (dict "@type" "ListItem" "position" (add $i 1) "url" $p.Permalink "name" $p.Title) -}}
+  {{- end -}}
+  {{- $itemList := dict "@context" "https://schema.org" "@type" "ItemList" "itemListElement" $items -}}
+<script type="application/ld+json">{{ $itemList | jsonify | safeHTML }}</script>
+{{- else -}}
+  {{- $collection := dict
+    "@context" "https://schema.org"
+    "@type" "CollectionPage"
+    "name" .Title
+    "url" .Permalink
+    "description" (printf "%s related news and trend analysis" .Title)
+    "isPartOf" (dict "@type" "WebSite" "name" $siteName "url" $siteURL)
+    "inLanguage" "ko-KR"
+  -}}
+<script type="application/ld+json">{{ $collection | jsonify | safeHTML }}</script>
+{{- end -}}
