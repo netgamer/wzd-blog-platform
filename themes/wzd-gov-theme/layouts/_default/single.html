@@ -17,7 +17,7 @@
 
   {{ if .Params.image }}
   <figure class="post-hero">
-    <img src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy" itemprop="image">
+    <img src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="eager" fetchpriority="high" itemprop="image">
   </figure>
   {{ end }}
 

@@ -1,105 +1,106 @@
-# 오늘의 트렌드 - 마케팅 전략 및 현황
+# news.wzd.kr SEO & Marketing Playbook
 
-## 사이트 정보
-- **URL**: https://news.wzd.kr
-- **카테고리**: 경제, 산업, 사회, 세계, 문화, 건강, 연예, 스포츠, IT (9개)
-- **콘텐츠 생성**: 매시간 자동 (ChatGPT 기반)
-- **이미지**: 썸네일(16:9) + 인포그래픽(1:1) + 네컷만화(1:1) 자동 생성
+## Current Position
 
----
+- Site: https://news.wzd.kr
+- Format: Korean trend/news explainer blog
+- Publishing: automated posts every 30 minutes while the local API server is running
+- Main traffic channels to build: Google Search, Naver Search, Daum, X/Twitter, Pinterest, community reposts
 
-## 검색엔진 등록 현황
+## Technical SEO Baseline
 
-| 플랫폼 | 상태 | 등록일 | 제출 항목 |
-|--------|------|--------|----------|
-| **네이버 서치어드바이저** | 등록완료 | 2026-05-03 | RSS, 사이트맵, 수집요청 |
-| **다음 웹마스터** | 인증완료 | 2026-05-03 | robots.txt 인증, 수집요청 |
-| **Google Search Console** | 등록완료 | 2026-05-03 | 사이트맵 |
+- Keep `robots.txt` open for Googlebot, Yeti, Daum, and general search crawlers.
+- Submit `https://news.wzd.kr/sitemap.xml` after each publishing batch.
+- Keep canonical URLs on every article.
+- Use `NewsArticle`, `BreadcrumbList`, `WebSite`, and `ItemList` JSON-LD.
+- Use large Open Graph images on every article.
+- Keep article titles readable in Korean and remove broken/generated placeholder titles from homepage exposure.
+- Avoid near-duplicate topics within the same category.
 
----
+## Weekly Marketing Team Routine
 
-## SNS 자동화 현황
+### SEO Lead
 
-| 채널 | 방식 | 상태 |
-|------|------|------|
-| **Twitter/X (@news_wzd)** | OAuth 1.0 API 자동 트윗 | 활성 |
-| **텔레그램** | Bot API 자동 알림 | 활성 |
-| **페이스북** | 미구현 | 예정 |
-| **네이버 블로그** | 미구현 | 예정 |
+- Check Google Search Console indexing coverage.
+- Inspect pages with impressions but low CTR.
+- Rewrite titles/meta descriptions for pages with CTR under 2%.
+- Submit sitemap manually after major batches.
+- Remove or noindex low-quality duplicate articles.
 
----
+### Content Editor
 
-## SEO 최적화 현황
+- Review the latest 20 articles daily.
+- Fix awkward headings, broken table of contents, or misplaced images.
+- Merge or delete near-duplicate posts.
+- Create 3 editorial “pillar” articles per week:
+  - `2026 건강 뉴스 총정리`
+  - `이번 주 경제 이슈 한눈에 보기`
+  - `AI/IT 트렌드 월간 정리`
 
-### 완료
-- [x] NewsArticle JSON-LD 스키마 (Google News 최적화)
-- [x] BreadcrumbList 스키마 (카테고리 경로)
-- [x] CollectionPage 스키마 (카테고리/태그 페이지)
-- [x] SearchAction 스키마 (홈페이지 검색)
-- [x] Open Graph 메타태그 (og:title, og:image, og:description 등)
-- [x] Twitter Card 메타태그 (twitter:image, twitter:image:alt)
-- [x] article:published_time, article:tag 메타태그
-- [x] RSS autodiscovery
-- [x] canonical URL
-- [x] robots.txt (네이버 Yeti, 다음 Daum 크롤러 명시)
-- [x] 사이트맵 자동 생성 (daily, priority 0.7)
-- [x] preconnect/dns-prefetch 성능 최적화
-- [x] 모바일 반응형 (3단계 브레이크포인트)
-- [x] 이미지 lazy loading
-- [x] 배포 시 Google/다음 사이트맵 핑
+### Social Marketer
 
-### 미완료
-- [ ] 네이버 블로그 연동 (요약 + 원문 링크)
-- [ ] 페이스북 페이지 자동 공유
-- [ ] 뉴스레터/이메일 구독 기능
-- [ ] 내부 링크 전략 강화
-- [ ] 카테고리별 맞춤 meta description
-- [ ] AMP 페이지
-- [ ] PWA (Progressive Web App)
+- Share every strong article to X/Twitter with one hook sentence and one image.
+- Repost image-heavy health/economy explainers to Pinterest.
+- Post 3 article summaries per day to relevant Korean communities without spammy wording.
+- Track which headlines get clicks and feed that back into prompt settings.
 
----
+### Analytics Owner
 
-## 트래픽 소스 전략
+- Check GA4 daily users, acquisition source, and top landing pages.
+- Report weekly:
+  - Search impressions
+  - Search clicks
+  - CTR
+  - Top 10 landing pages
+  - Articles with zero traffic after 7 days
 
-### 1단계: 검색엔진 (현재 진행중)
-- 네이버/다음/구글 인덱싱 대기 중
-- 예상 효과: 1-2주 후 검색 노출 시작
-- KPI: 일일 검색 유입 100+ 목표
+## 30-Day Growth Plan
 
-### 2단계: SNS 자동 공유 (구현 완료)
-- Twitter 자동 트윗 → 해시태그로 노출
-- 예상 효과: 포스트당 10-50 클릭
-- KPI: 월간 SNS 유입 1,000+
+### Week 1: Fix Trust Signals
 
-### 3단계: 커뮤니티 (예정)
-- 관련 커뮤니티에 유용한 글 공유
-- 대상: 클리앙, 뽐뿌, 에브리타임 등
-- 주의: 스팸이 아닌 가치 제공 중심
+- Repair technical SEO templates.
+- Remove broken-title posts from homepage.
+- Make homepage show only high-quality latest posts.
+- Verify Google, Naver, and Daum sitemap submission.
 
-### 4단계: 네이버 블로그 연동 (예정)
-- 네이버 블로그에 요약 + 원문 링크
-- 네이버 검색 상위 노출에 가장 효과적
-- 예상 효과: 일일 유입 500+
+### Week 2: Build Topic Clusters
 
----
+- Pick 5 repeatable clusters:
+  - 건강/다이어트
+  - 경제/지원금/금융
+  - AI/IT
+  - 연예/K-pop
+  - 스포츠
+- Add internal links between new posts and older related posts.
+- Publish one weekly hub article per cluster.
 
-## 수익화 계획
+### Week 3: Improve CTR
 
-| 단계 | 조건 | 방법 |
-|------|------|------|
-| 1단계 | 일일 방문 100+ | Google AdSense 신청 |
-| 2단계 | 일일 방문 1,000+ | 배너 광고 직접 영업 |
-| 3단계 | 일일 방문 5,000+ | 스폰서 콘텐츠, 제휴 마케팅 |
+- Rewrite titles using:
+  - specific number
+  - current year/date
+  - clear benefit or conflict
+  - no clickbait that the article cannot satisfy
+- Add concise meta descriptions under 155 Korean characters when possible.
 
----
+### Week 4: Distribution
 
-## 모니터링
+- Promote top 10 posts manually.
+- Build Pinterest boards by category.
+- Create X/Twitter thread templates for each category.
+- Add newsletter or Kakao/Naver channel once organic clicks start rising.
 
-### 자동 모니터링 (서버 내장)
-- 포스트 발행 시 텔레그램 알림 (제목, URL, 트윗 상태, 마케팅 현황)
-- 배포 시 검색엔진 사이트맵 핑
+## Quick KPI Targets
 
-### 수동 체크 (주 1회)
-- Google Search Console: 인덱싱 상태, 검색어 보고서
-- 네이버 서치어드바이저: 수집 현황, 검색 노출
-- Google Analytics: 트래픽 추이, 인기 포스트
+- First target: 100 organic clicks/day
+- Next target: 1,000 pageviews/day
+- CTR target: 3% or higher on Google Search Console
+- Content quality target: fewer than 5% articles requiring manual correction
+
+## Immediate Manual Checklist
+
+- Open Google Search Console and request indexing for the latest 10 posts.
+- Open Naver Search Advisor and resubmit sitemap.
+- Open Daum Webmaster and resubmit sitemap.
+- Review homepage after every 10 generated posts.
+- Delete or rewrite articles with broken title, duplicate topic, or bad image layout.
