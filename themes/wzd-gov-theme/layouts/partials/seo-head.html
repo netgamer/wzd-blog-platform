@@ -1,75 +1,131 @@
 {{- $siteName := .Site.Title -}}
 {{- $siteURL := .Site.BaseURL -}}
 {{- $siteDescription := .Site.Params.description -}}
-{{- $publisher := dict "@type" "Organization" "name" $siteName "url" $siteURL "logo" (dict "@type" "ImageObject" "url" ("images/og-default.png" | absURL)) -}}
 
 {{- if .IsPage -}}
-  {{- $description := .Description | default (.Summary | plainify | truncate 160) -}}
-  {{- $authorName := .Params.author | default .Site.Params.author | default $siteName -}}
-  {{- $article := dict
-    "@context" "https://schema.org"
-    "@type" "NewsArticle"
-    "headline" .Title
-    "description" $description
-    "datePublished" (.Date.Format "2006-01-02T15:04:05Z07:00")
-    "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00")
-    "inLanguage" "ko-KR"
-    "author" (dict "@type" "Person" "name" $authorName)
-    "publisher" $publisher
-    "mainEntityOfPage" (dict "@type" "WebPage" "@id" .Permalink)
-  -}}
-  {{- with .Params.image -}}
-    {{- $article = merge $article (dict "image" (slice (printf "%s%s" $.Site.BaseURL (strings.TrimPrefix "/" .)))) -}}
-  {{- end -}}
-  {{- with .Params.categories -}}
-    {{- $article = merge $article (dict "articleSection" (index . 0)) -}}
-  {{- end -}}
-  {{- with .Params.tags -}}
-    {{- $article = merge $article (dict "keywords" .) -}}
-  {{- end -}}
-<script type="application/ld+json">{{ $article | jsonify | safeHTML }}</script>
+{{- $description := .Description | default (.Summary | plainify | truncate 160) -}}
+{{- $authorName := .Params.author | default .Site.Params.author | default $siteName -}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  "headline": {{ printf "%q" .Title | safeJS }},
+  "description": {{ printf "%q" $description | safeJS }},
+  "datePublished": {{ printf "%q" (.Date.Format "2006-01-02T15:04:05Z07:00") | safeJS }},
+  "dateModified": {{ printf "%q" (.Lastmod.Format "2006-01-02T15:04:05Z07:00") | safeJS }},
+  "inLanguage": "ko-KR",
+  {{- with .Params.image }}
+  "image": [{{ printf "%q" (printf "%s%s" $.Site.BaseURL (strings.TrimPrefix "/" .)) | safeJS }}],
+  {{- end }}
+  {{- with .Params.categories }}
+  "articleSection": {{ printf "%q" (index . 0) | safeJS }},
+  {{- end }}
+  {{- with .Params.tags }}
+  "keywords": [{{ range $i, $tag := . }}{{ if $i }},{{ end }}{{ printf "%q" $tag | safeJS }}{{ end }}],
+  {{- end }}
+  "author": {
+    "@type": "Person",
+    "name": {{ printf "%q" $authorName | safeJS }}
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": {{ printf "%q" $siteName | safeJS }},
+    "url": {{ printf "%q" $siteURL | safeJS }},
+    "logo": {
+      "@type": "ImageObject",
+      "url": {{ printf "%q" ("images/og-default.png" | absURL) | safeJS }}
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": {{ printf "%q" .Permalink | safeJS }}
+  }
+}
+</script>
 
-  {{- $items := slice (dict "@type" "ListItem" "position" 1 "name" "Home" "item" $siteURL) -}}
-  {{- with .Params.categories -}}
-    {{- $cat := index . 0 -}}
-    {{- $items = $items | append (dict "@type" "ListItem" "position" 2 "name" $cat "item" (printf "%scategories/%s/" $.Site.BaseURL ($cat | urlize))) -}}
-  {{- end -}}
-  {{- $items = $items | append (dict "@type" "ListItem" "position" 3 "name" .Title "item" .Permalink) -}}
-  {{- $breadcrumb := dict "@context" "https://schema.org" "@type" "BreadcrumbList" "itemListElement" $items -}}
-<script type="application/ld+json">{{ $breadcrumb | jsonify | safeHTML }}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": {{ printf "%q" $siteURL | safeJS }}
+    }{{ with .Params.categories }},
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": {{ printf "%q" (index . 0) | safeJS }},
+      "item": {{ printf "%q" (printf "%scategories/%s/" $.Site.BaseURL ((index . 0) | urlize)) | safeJS }}
+    }{{ end }},
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": {{ printf "%q" .Title | safeJS }},
+      "item": {{ printf "%q" .Permalink | safeJS }}
+    }
+  ]
+}
+</script>
 {{- else if .IsHome -}}
-  {{- $website := dict
-    "@context" "https://schema.org"
-    "@type" "WebSite"
-    "name" $siteName
-    "url" $siteURL
-    "description" $siteDescription
-    "inLanguage" "ko-KR"
-    "publisher" $publisher
-    "potentialAction" (dict
-      "@type" "SearchAction"
-      "target" (dict "@type" "EntryPoint" "urlTemplate" (printf "%s?q={search_term_string}" $siteURL))
-      "query-input" "required name=search_term_string"
-    )
-  -}}
-<script type="application/ld+json">{{ $website | jsonify | safeHTML }}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": {{ printf "%q" $siteName | safeJS }},
+  "url": {{ printf "%q" $siteURL | safeJS }},
+  "description": {{ printf "%q" $siteDescription | safeJS }},
+  "inLanguage": "ko-KR",
+  "publisher": {
+    "@type": "Organization",
+    "name": {{ printf "%q" $siteName | safeJS }},
+    "url": {{ printf "%q" $siteURL | safeJS }}
+  },
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": {{ printf "%q" (printf "%s?q={search_term_string}" $siteURL) | safeJS }}
+    },
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
 
-  {{- $posts := where .Site.RegularPages "Section" "posts" -}}
-  {{- $items := slice -}}
-  {{- range $i, $p := first 10 $posts.ByDate.Reverse -}}
-    {{- $items = $items | append (dict "@type" "ListItem" "position" (add $i 1) "url" $p.Permalink "name" $p.Title) -}}
-  {{- end -}}
-  {{- $itemList := dict "@context" "https://schema.org" "@type" "ItemList" "itemListElement" $items -}}
-<script type="application/ld+json">{{ $itemList | jsonify | safeHTML }}</script>
+{{- $posts := where .Site.RegularPages "Section" "posts" -}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "itemListElement": [
+    {{- range $i, $p := first 10 $posts.ByDate.Reverse }}
+    {{- if $i }},{{ end }}
+    {
+      "@type": "ListItem",
+      "position": {{ add $i 1 }},
+      "name": {{ printf "%q" $p.Title | safeJS }},
+      "url": {{ printf "%q" $p.Permalink | safeJS }}
+    }
+    {{- end }}
+  ]
+}
+</script>
 {{- else -}}
-  {{- $collection := dict
-    "@context" "https://schema.org"
-    "@type" "CollectionPage"
-    "name" .Title
-    "url" .Permalink
-    "description" (printf "%s related news and trend analysis" .Title)
-    "isPartOf" (dict "@type" "WebSite" "name" $siteName "url" $siteURL)
-    "inLanguage" "ko-KR"
-  -}}
-<script type="application/ld+json">{{ $collection | jsonify | safeHTML }}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": {{ printf "%q" .Title | safeJS }},
+  "url": {{ printf "%q" .Permalink | safeJS }},
+  "description": {{ printf "%q" (printf "%s related news and trend analysis" .Title) | safeJS }},
+  "inLanguage": "ko-KR",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": {{ printf "%q" $siteName | safeJS }},
+    "url": {{ printf "%q" $siteURL | safeJS }}
+  }
+}
+</script>
 {{- end -}}
