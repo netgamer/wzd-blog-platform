@@ -376,6 +376,31 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   display: block;
 }
 
+.source-image {
+  margin: 1.5rem 0 2rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+}
+.source-image img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  display: block;
+}
+.source-image figcaption {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  color: var(--color-text-light);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.source-image figcaption a {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 /* === Mid-article Image (1:1 square) === */
 .post-mid-image {
   margin: 2.5rem auto;
