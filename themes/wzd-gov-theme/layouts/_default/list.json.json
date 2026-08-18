@@ -1,5 +1,5 @@
-{{- $pages := .Pages -}}
-{{- $limit := 100 -}}
+{{- $pages := .Pages.ByDate.Reverse -}}
+{{- $limit := 300 -}}
 [{{ range $i, $p := first $limit $pages }}{{ if $i }},{{ end }}
-{"title":{{ $p.Title | jsonify }},"url":"{{ $p.RelPermalink }}","date":"{{ $p.Date.Format "2006.01.02" }}","image":"{{ with $p.Params.image }}{{ printf "%s%s" $.Site.BaseURL (strings.TrimPrefix "/" .) }}{{ end }}","excerpt":{{ ($p.Description | default ($p.Summary | plainify | truncate 120)) | jsonify }},"categories":[{{ range $j, $c := $p.Params.categories }}{{ if $j }},{{ end }}{{ $c | jsonify }}{{ end }}]}
+{"title":{{ $p.Title | jsonify }},"url":"{{ $p.RelPermalink }}","date":"{{ $p.Date.Format "2006.01.02" }}","dateIso":"{{ $p.Date.Format "2006-01-02T15:04:05Z07:00" }}","timestamp":{{ $p.Date.Unix }},"image":"{{ with $p.Params.image }}{{ printf "%s%s" $.Site.BaseURL (strings.TrimPrefix "/" .) }}{{ end }}","excerpt":{{ ($p.Description | default ($p.Summary | plainify | truncate 140)) | jsonify }},"categories":[{{ range $j, $c := $p.Params.categories }}{{ if $j }},{{ end }}{{ $c | jsonify }}{{ end }}],"tags":[{{ range $j, $t := $p.Params.tags }}{{ if $j }},{{ end }}{{ $t | jsonify }}{{ end }}],"wordCount":{{ $p.WordCount }},"readingTime":{{ $p.ReadingTime }}}
 {{- end }}]

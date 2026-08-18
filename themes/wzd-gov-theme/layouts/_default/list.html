@@ -11,6 +11,8 @@
   <div class="list-description">{{ .Content }}</div>
   {{ end }}
 
+  {{ partial "search-controls.html" . }}
+
   <div class="post-list">
     {{ range .Paginator.Pages }}
     <article class="post-card">
