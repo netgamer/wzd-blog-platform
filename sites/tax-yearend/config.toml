@@ -57,7 +57,7 @@ canonifyURLs = true
       bannerHtml = ''''''
 
     [params.coupangPartners.banners.beautyFashion]
-      coupangCategory = '뷰티 또는 패션의류/잡화'
+      coupangCategory = '뷰티'
       bannerHtml = ''''''
 
     [params.coupangPartners.banners.sportsLeisure]
