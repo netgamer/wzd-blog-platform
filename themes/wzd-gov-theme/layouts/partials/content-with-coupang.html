@@ -1,0 +1,14 @@
+{{- $content := .Content -}}
+{{- $ad := partial "coupang-partners.html" . -}}
+{{- $insertAfter := .Site.Params.coupangPartners.insertAfterParagraph | default 3 -}}
+{{- if and $ad (gt $insertAfter 0) (in $content "</p>") -}}
+  {{- $parts := split $content "</p>" -}}
+  {{- $last := sub (len $parts) 1 -}}
+  {{- range $i, $part := $parts -}}
+    {{- $part | safeHTML -}}
+    {{- if lt $i $last -}}</p>{{- end -}}
+    {{- if eq (add $i 1) $insertAfter -}}{{ $ad }}{{- end -}}
+  {{- end -}}
+{{- else -}}
+  {{- $content -}}
+{{- end -}}

@@ -47,7 +47,7 @@
   {{ end }}
 
   <div class="post-content" itemprop="articleBody">
-    {{ .Content }}
+    {{ partial "content-with-coupang.html" . }}
   </div>
 
   {{/* AdSense - 본문 하단 */}}

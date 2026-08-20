@@ -15,6 +15,11 @@ canonifyURLs = true
   naverVerification = ''
   keywords = ['오늘의 트렌드', '실시간 뉴스', '경제 뉴스', '건강 정보', 'IT 트렌드', '연예 뉴스', '스포츠 뉴스', '정책 정보', '생활 정보']
 
+  [params.coupangPartners]
+    enabled = true
+    insertAfterParagraph = 3
+    disclosure = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
+    bannerHtml = ''''''
 [taxonomies]
   category = 'categories'
   tag = 'tags'
