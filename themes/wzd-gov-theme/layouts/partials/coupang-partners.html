@@ -1,9 +1,16 @@
 {{- $cfg := .Site.Params.coupangPartners -}}
-{{- if and $cfg.enabled $cfg.bannerHtml -}}
+{{- $category := "" -}}
+{{- with .Params.categories }}{{ $category = index . 0 }}{{ end -}}
+{{- $bannerKey := $cfg.defaultBannerKey | default "sportsLeisure" -}}
+{{- with index $cfg.categoryMap $category }}{{ $bannerKey = . }}{{ end -}}
+{{- $banner := index $cfg.banners $bannerKey -}}
+{{- $bannerHtml := "" -}}
+{{- with $banner }}{{ $bannerHtml = .bannerHtml }}{{ end -}}
+{{- if and $cfg.enabled $bannerHtml -}}
 <aside class="coupang-partners-ad" aria-label="쿠팡파트너스 광고">
-  <div class="coupang-partners-label">광고</div>
+  <div class="coupang-partners-label">광고{{ with $banner.coupangCategory }} · {{ . }}{{ end }}</div>
   <div class="coupang-partners-body">
-    {{ $cfg.bannerHtml | safeHTML }}
+    {{ $bannerHtml | safeHTML }}
   </div>
   {{ with $cfg.disclosure }}
   <p class="coupang-partners-disclosure">{{ . }}</p>

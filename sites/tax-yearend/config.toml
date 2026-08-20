@@ -18,8 +18,51 @@ canonifyURLs = true
   [params.coupangPartners]
     enabled = true
     insertAfterParagraph = 3
+    defaultBannerKey = 'sportsLeisure'
     disclosure = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
-    bannerHtml = '''
+
+    [params.coupangPartners.categoryMap]
+      '경제' = 'office'
+      '산업' = 'digital'
+      '사회' = 'living'
+      '세계' = 'overseasTravel'
+      '문화' = 'booksMedia'
+      '건강' = 'health'
+      '연예' = 'beautyFashion'
+      '스포츠' = 'sportsLeisure'
+      'IT' = 'digital'
+
+    [params.coupangPartners.banners.office]
+      coupangCategory = '문구/오피스'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.digital]
+      coupangCategory = '가전디지털'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.living]
+      coupangCategory = '생활용품'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.overseasTravel]
+      coupangCategory = '해외여행'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.booksMedia]
+      coupangCategory = '도서/음반/DVD'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.health]
+      coupangCategory = '헬스/건강식품'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.beautyFashion]
+      coupangCategory = '뷰티 또는 패션의류/잡화'
+      bannerHtml = ''''''
+
+    [params.coupangPartners.banners.sportsLeisure]
+      coupangCategory = '스포츠/레저'
+      bannerHtml = '''
 <script src="https://ads-partners.coupang.com/g.js"></script>
 <script>
   new PartnersCoupang.G({"id":1019681,"template":"carousel","trackingCode":"AF2196980","width":"680","height":"140","tsource":""});
