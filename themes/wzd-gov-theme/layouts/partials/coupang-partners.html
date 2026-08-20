@@ -12,6 +12,32 @@
   <div class="coupang-partners-body">
     {{ $bannerHtml | safeHTML }}
   </div>
+  <script>
+  (function(){
+    var ad = document.currentScript.closest('.coupang-partners-ad');
+    if (!ad) return;
+    var body = ad.querySelector('.coupang-partners-body');
+    var ratio = 140 / 680;
+    function resizeCoupangAd() {
+      var width = Math.floor(body.clientWidth || ad.clientWidth || 680);
+      var height = Math.max(96, Math.round(width * ratio));
+      body.style.minHeight = height + 'px';
+      body.querySelectorAll('iframe, img').forEach(function(el) {
+        el.style.width = '100%';
+        el.style.maxWidth = '100%';
+        el.style.height = height + 'px';
+      });
+    }
+    resizeCoupangAd();
+    setTimeout(resizeCoupangAd, 300);
+    setTimeout(resizeCoupangAd, 1000);
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(resizeCoupangAd).observe(body);
+    } else {
+      window.addEventListener('resize', resizeCoupangAd);
+    }
+  })();
+  </script>
   {{ with $cfg.disclosure }}
   <p class="coupang-partners-disclosure">{{ . }}</p>
   {{ end }}
