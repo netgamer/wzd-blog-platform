@@ -18,50 +18,22 @@ canonifyURLs = true
   [params.coupangPartners]
     enabled = true
     insertAfterParagraph = 3
-    defaultBannerKey = 'sportsLeisure'
+    defaultBannerKey = 'interest'
     disclosure = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
 
     [params.coupangPartners.categoryMap]
-      '경제' = 'digital'
-      '산업' = 'digital'
-      '사회' = 'living'
-      '세계' = 'overseasTravel'
-      '문화' = 'booksMedia'
-      '건강' = 'health'
-      '연예' = 'beautyFashion'
-      '스포츠' = 'sportsLeisure'
-      'IT' = 'digital'
+      '경제' = 'interest'
+      '산업' = 'interest'
+      '사회' = 'interest'
+      '세계' = 'interest'
+      '문화' = 'interest'
+      '건강' = 'interest'
+      '연예' = 'interest'
+      '스포츠' = 'interest'
+      'IT' = 'interest'
 
-    [params.coupangPartners.banners.office]
-      coupangCategory = '문구/오피스'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.digital]
-      coupangCategory = '가전디지털'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.living]
-      coupangCategory = '생활용품'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.overseasTravel]
-      coupangCategory = '해외여행'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.booksMedia]
-      coupangCategory = '도서/음반/DVD'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.health]
-      coupangCategory = '헬스/건강식품'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.beautyFashion]
-      coupangCategory = '뷰티'
-      bannerHtml = ''''''
-
-    [params.coupangPartners.banners.sportsLeisure]
-      coupangCategory = '스포츠/레저'
+    [params.coupangPartners.banners.interest]
+      coupangCategory = '고객 관심 기반'
       bannerHtml = '''
 <script src="https://ads-partners.coupang.com/g.js"></script>
 <script>
