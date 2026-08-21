@@ -10,7 +10,12 @@
   {{ $isArticlePage := and .IsPage (ne .Params.page_type "contact") }}
   {{ if $isArticlePage }}<meta name="author" content="{{ .Params.author | default .Site.Params.author }}">{{ end }}
   <meta name="keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ delimit .Site.Params.keywords ", " }}{{ end }}">
+  {{ $isTagPage := hasPrefix .RelPermalink "/tags/" }}
+  {{ if or .Params.noindex $isTagPage }}
+  <meta name="robots" content="noindex,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  {{ else }}
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  {{ end }}
   <meta name="theme-color" content="#0b4db3">
   {{ if $isArticlePage }}
   <meta name="news_keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ .Title }}{{ end }}">
