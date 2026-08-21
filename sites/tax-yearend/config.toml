@@ -1,6 +1,6 @@
 baseURL = 'https://news.wzd.kr/'
 languageCode = 'ko'
-title = '오늘의 트렌드 - 실시간 이슈·정책·생활 가이드'
+title = '오늘의트렌드'
 theme = 'wzd-gov-theme'
 [pagination]
   pagerSize = 10
@@ -8,12 +8,14 @@ enableRobotsTXT = true
 canonifyURLs = true
 
 [params]
-  description = '실시간 트렌드 뉴스, 경제, 건강, IT, 연예, 스포츠 등 오늘의 핫이슈를 빠르고 깊이 있게 전달합니다.'
+  displayTitle = '오늘의 트렌드'
+  titleSuffix = '실시간 이슈·정책·생활 뉴스'
+  description = '오늘의트렌드(오늘의 트렌드)는 실시간 트렌드 뉴스, 경제, 건강, IT, 연예, 스포츠 등 오늘의 핫이슈를 빠르고 깊이 있게 전달합니다.'
   author = '오늘의 트렌드'
   gaId = 'G-X1VVEB9LME'
   adsenseId = ''
   naverVerification = ''
-  keywords = ['오늘의 트렌드', '실시간 뉴스', '경제 뉴스', '건강 정보', 'IT 트렌드', '연예 뉴스', '스포츠 뉴스', '정책 정보', '생활 정보']
+  keywords = ['오늘의트렌드', '오늘의 트렌드', 'news.wzd.kr', '실시간 뉴스', '트렌드 뉴스', '경제 뉴스', '건강 정보', 'IT 트렌드', '연예 뉴스', '스포츠 뉴스', '정책 정보', '생활 정보']
 
   [params.coupangPartners]
     enabled = true

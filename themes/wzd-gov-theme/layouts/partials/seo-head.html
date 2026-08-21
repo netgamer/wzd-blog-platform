@@ -1,4 +1,5 @@
 {{- $siteName := .Site.Title -}}
+{{- $displayName := .Site.Params.displayTitle | default .Site.Title -}}
 {{- $siteURL := .Site.BaseURL -}}
 {{- $siteDescription := .Site.Params.description -}}
 
@@ -29,7 +30,8 @@
   },
   "publisher": {
     "@type": "Organization",
-    "name": {{ printf "%q" $siteName | safeJS }},
+    "name": {{ printf "%q" $displayName | safeJS }},
+    "alternateName": ["오늘의트렌드", "오늘의 트렌드", "news.wzd.kr"],
     "url": {{ printf "%q" $siteURL | safeJS }},
     "logo": {
       "@type": "ImageObject",
@@ -122,8 +124,9 @@
   "description": {{ printf "%q" $siteDescription | safeJS }},
   "inLanguage": "ko-KR",
   "publisher": {
-    "@type": "Organization",
-    "name": {{ printf "%q" $siteName | safeJS }},
+    "@type": "NewsMediaOrganization",
+    "name": {{ printf "%q" $displayName | safeJS }},
+    "alternateName": ["오늘의트렌드", "오늘의 트렌드", "news.wzd.kr"],
     "url": {{ printf "%q" $siteURL | safeJS }}
   },
   "potentialAction": {
