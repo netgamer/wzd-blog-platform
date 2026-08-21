@@ -152,6 +152,13 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   color: #fff;
 }
 @media (max-width: 767px) {
+  .coupang-partners-ad {
+    margin: 1.6rem 0;
+    padding: 0.85rem;
+  }
+  .coupang-partners-body {
+    min-height: 130px;
+  }
   .top-banner-link { font-size: 1rem; }
 }
 
@@ -285,8 +292,8 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 .post-content strong { color: var(--color-text); font-weight: 700; }
 
 .coupang-partners-ad {
-  margin: 2rem 0;
-  padding: 1rem;
+  margin: 2.2rem 0;
+  padding: 1.15rem;
   width: 100%;
   max-width: 100%;
   border: 1px solid var(--color-border);
@@ -311,14 +318,19 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   justify-content: center;
   align-items: center;
   width: 100%;
-  min-height: 140px;
+  min-height: 190px;
   overflow: hidden;
+}
+.coupang-partners-body > * {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 .coupang-partners-body iframe,
 .coupang-partners-body img {
+  display: block;
   width: 100% !important;
-  max-width: 100%;
-  height: auto;
+  max-width: 100% !important;
+  min-height: 150px;
   border: 0;
   border-radius: 6px;
 }

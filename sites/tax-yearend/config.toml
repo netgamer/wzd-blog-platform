@@ -39,7 +39,7 @@ canonifyURLs = true
       bannerHtml = '''
 <script src="https://ads-partners.coupang.com/g.js"></script>
 <script>
-  new PartnersCoupang.G({"id":1019681,"template":"carousel","trackingCode":"AF2196980","width":"680","height":"140","tsource":""});
+  new PartnersCoupang.G({"id":1019681,"template":"carousel","trackingCode":"AF2196980","width":"860","height":"220","tsource":""});
 </script>
 '''
 [taxonomies]
