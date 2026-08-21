@@ -1240,3 +1240,166 @@ body {
     margin-top: 1.6rem;
   }
 }
+
+.nav-row-clean {
+  justify-content: center;
+}
+.menu-toggle {
+  display: none !important;
+}
+.nav-alert {
+  color: #e11d48 !important;
+  font-weight: 900;
+}
+
+.jebo-page {
+  max-width: 980px;
+  margin: 0 auto 4rem;
+  padding: 3.25rem 0 1rem;
+}
+.jebo-hero {
+  text-align: center;
+  padding: 2.5rem 1rem 3rem;
+}
+.jebo-kicker {
+  margin: 0 0 0.7rem;
+  color: var(--color-primary);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+.jebo-hero h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 2.35rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.jebo-hero p {
+  max-width: 620px;
+  margin: 1.2rem auto 0;
+  color: #374151;
+  font-size: 1.02rem;
+  line-height: 1.75;
+}
+.jebo-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid #d1d5db;
+  margin-bottom: 2rem;
+}
+.jebo-tabs span {
+  padding: 1rem 0;
+  color: #111827;
+  text-align: center;
+  font-weight: 850;
+  border-bottom: 3px solid transparent;
+}
+.jebo-tabs span:first-child {
+  border-color: var(--color-primary);
+}
+.jebo-email-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.45rem;
+  background: #f3f6fb;
+  border: 1px solid #e1e6ef;
+}
+.jebo-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #6b7280;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+.jebo-email-box a:not(.jebo-mail-button) {
+  color: #111827;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+.jebo-mail-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 1.15rem;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 850;
+  text-decoration: none;
+}
+.jebo-mail-button:hover {
+  background: #073f94;
+  text-decoration: none;
+}
+.jebo-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+.jebo-card {
+  padding: 1.35rem;
+  border: 1px solid #e1e6ef;
+  background: #fff;
+}
+.jebo-card h2,
+.jebo-guide h2 {
+  margin: 0 0 0.75rem;
+  color: #111827;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+.jebo-card p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+.jebo-guide {
+  margin-top: 1.25rem;
+  padding: 1.35rem;
+  border-top: 2px solid #111827;
+  background: #fff;
+}
+.jebo-guide ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 1.5rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #374151;
+  line-height: 1.65;
+}
+.jebo-guide p {
+  margin: 1rem 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 767px) {
+  .nav-row-clean {
+    justify-content: flex-start;
+  }
+  .jebo-page {
+    padding-top: 1.4rem;
+  }
+  .jebo-hero {
+    padding: 1.5rem 0 2rem;
+  }
+  .jebo-hero h1 {
+    font-size: 1.85rem;
+  }
+  .jebo-email-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .jebo-email-box a:not(.jebo-mail-button) {
+    font-size: 1.1rem;
+  }
+  .jebo-card-grid,
+  .jebo-guide ul {
+    grid-template-columns: 1fr;
+  }
+}

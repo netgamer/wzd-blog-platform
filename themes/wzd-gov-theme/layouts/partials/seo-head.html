@@ -2,7 +2,7 @@
 {{- $siteURL := .Site.BaseURL -}}
 {{- $siteDescription := .Site.Params.description -}}
 
-{{- if .IsPage -}}
+{{- if and .IsPage (ne .Params.page_type "contact") -}}
 {{- $description := .Description | default (.Summary | plainify | truncate 160) -}}
 {{- $authorName := .Params.author | default .Site.Params.author | default $siteName -}}
 <script type="application/ld+json">
@@ -63,6 +63,49 @@
     {
       "@type": "ListItem",
       "position": 3,
+      "name": {{ printf "%q" .Title | safeJS }},
+      "item": {{ printf "%q" .Permalink | safeJS }}
+    }
+  ]
+}
+</script>
+{{- else if eq .Params.page_type "contact" -}}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ContactPage",
+  "name": {{ printf "%q" .Title | safeJS }},
+  "url": {{ printf "%q" .Permalink | safeJS }},
+  "description": {{ printf "%q" (.Description | default $siteDescription) | safeJS }},
+  "inLanguage": "ko-KR",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": {{ printf "%q" $siteName | safeJS }},
+    "url": {{ printf "%q" $siteURL | safeJS }}
+  },
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "netgamer@naver.com",
+    "contactType": "editorial, advertising, customer support",
+    "availableLanguage": "Korean"
+  }
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": {{ printf "%q" $siteURL | safeJS }}
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
       "name": {{ printf "%q" .Title | safeJS }},
       "item": {{ printf "%q" .Permalink | safeJS }}
     }
