@@ -4,8 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {{ $displayTitle := .Site.Params.displayTitle | default .Site.Title }}
+  {{ $compactTitle := .Site.Params.compactTitle | default .Site.Title }}
   {{ $titleSuffix := .Site.Params.titleSuffix | default .Site.Params.description }}
-  <title>{{ if .IsHome }}{{ .Site.Title }} | {{ $titleSuffix }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
+  <title>{{ if .IsHome }}{{ $displayTitle }} ({{ $compactTitle }}) | {{ $titleSuffix }}{{ else }}{{ .Title }} | {{ $displayTitle }}{{ end }}</title>
+  <meta name="application-name" content="{{ $displayTitle }}">
   <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   {{ $isArticlePage := and .IsPage (ne .Params.page_type "contact") }}
   {{ if $isArticlePage }}<meta name="author" content="{{ .Params.author | default .Site.Params.author }}">{{ end }}
