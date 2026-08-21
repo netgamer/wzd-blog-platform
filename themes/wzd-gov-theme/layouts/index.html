@@ -1,21 +1,58 @@
 {{ define "main" }}
-<section class="home-hero">
-  <h1>{{ .Site.Title }}</h1>
-  <p>{{ .Site.Params.description }}</p>
+{{ $posts := where .Site.RegularPages "Section" "posts" }}
+{{ $validPosts := slice }}
+{{ range $posts.ByDate.Reverse }}
+  {{ $badTitle := or (findRE "\\?\\?+" .Title) (findRE "contentreference|ContentReference" .Title) }}
+  {{ if not $badTitle }}{{ $validPosts = $validPosts | append . }}{{ end }}
+{{ end }}
+
+<section class="home-newsdesk" aria-label="주요 뉴스">
+  {{ range first 1 $validPosts }}
+  <article class="lead-story">
+    {{ if .Params.image }}
+    <a href="{{ .Permalink }}" class="lead-story-image">
+      <img src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="eager" fetchpriority="high">
+    </a>
+    {{ end }}
+    <div class="lead-story-body">
+      <div class="story-kicker">
+        {{ range first 1 .Params.categories }}{{ . }}{{ else }}주요뉴스{{ end }}
+      </div>
+      <h1 class="lead-story-title"><a href="{{ .Permalink }}">{{ .Title }}</a></h1>
+      <p class="lead-story-excerpt">{{ .Description | default (.Summary | plainify | truncate 180) }}</p>
+      <div class="post-card-meta">
+        <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006.01.02" }}</time>
+      </div>
+    </div>
+  </article>
+  {{ end }}
+
+  <div class="top-story-grid" aria-label="주요 기사 목록">
+    {{ range first 4 (after 1 $validPosts) }}
+    <article class="top-story">
+      {{ if .Params.image }}
+      <a href="{{ .Permalink }}" class="top-story-image">
+        <img src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">
+      </a>
+      {{ end }}
+      <div class="top-story-body">
+        <h2 class="top-story-title"><a href="{{ .Permalink }}">{{ .Title }}</a></h2>
+        <p class="top-story-excerpt">{{ .Description | default (.Summary | plainify | truncate 80) }}</p>
+      </div>
+    </article>
+    {{ end }}
+  </div>
 </section>
 
 {{ partial "search-controls.html" . }}
 
 <section class="home-latest">
-  <h2>최신 글</h2>
-  <div class="post-list">
-    {{ $posts := where .Site.RegularPages "Section" "posts" }}
-    {{ $validPosts := slice }}
-    {{ range $posts.ByDate.Reverse }}
-      {{ $badTitle := or (findRE "\\?\\?+" .Title) (findRE "contentreference|ContentReference" .Title) }}
-      {{ if not $badTitle }}{{ $validPosts = $validPosts | append . }}{{ end }}
-    {{ end }}
-    {{ range first 6 $validPosts }}
+  <div class="section-heading">
+    <h2>최신 기사</h2>
+    <span>시간순 업데이트</span>
+  </div>
+  <div class="post-list newsroom-list">
+    {{ range first 9 (after 5 $validPosts) }}
     <article class="post-card">
       {{ if .Params.image }}
       <a href="{{ .Permalink }}" class="post-card-image">
@@ -36,10 +73,13 @@
 </section>
 
 <section class="home-more">
-  <h2>더 많은 글</h2>
-  <div class="post-list" id="more-posts">
-    {{ range after 6 $validPosts }}
-    <article class="post-card lazy-post" style="display:none" data-idx="{{ .Scratch.Get "idx" }}">
+  <div class="section-heading">
+    <h2>더 많은 기사</h2>
+    <span>전체 뉴스</span>
+  </div>
+  <div class="post-list newsroom-list" id="more-posts">
+    {{ range after 14 $validPosts }}
+    <article class="post-card lazy-post" style="display:none">
       {{ if .Params.image }}
       <a href="{{ .Permalink }}" class="post-card-image">
         <img data-src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">
@@ -57,8 +97,8 @@
     {{ end }}
   </div>
   <div id="load-trigger" style="height:1px"></div>
-  <div id="load-spinner" style="text-align:center;padding:2rem;display:none;color:#999">글을 불러오는 중...</div>
-  <div id="load-end" style="text-align:center;padding:2rem;display:none;color:#ccc">모든 글을 불러왔습니다</div>
+  <div id="load-spinner" style="text-align:center;padding:2rem;display:none;color:#999">기사를 불러오는 중...</div>
+  <div id="load-end" style="text-align:center;padding:2rem;display:none;color:#ccc">모든 기사를 불러왔습니다</div>
 </section>
 
 <script>
@@ -83,7 +123,6 @@
       var end = Math.min(shown + batch, posts.length);
       for (var i = shown; i < end; i++) {
         posts[i].style.display = '';
-        // Load lazy images
         var img = posts[i].querySelector('img[data-src]');
         if (img) {
           img.src = img.getAttribute('data-src');
@@ -99,7 +138,6 @@
     }, 300);
   }
 
-  // Intersection Observer for infinite scroll
   var observer = new IntersectionObserver(function(entries) {
     if (entries[0].isIntersecting) showMore();
   }, { rootMargin: '400px' });

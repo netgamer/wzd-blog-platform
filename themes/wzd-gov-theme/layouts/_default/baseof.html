@@ -8,27 +8,17 @@
   {{ if .IsPage }}<meta name="author" content="{{ .Params.author | default .Site.Params.author }}">{{ end }}
   <meta name="keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ delimit .Site.Params.keywords ", " }}{{ end }}">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
-  <meta name="theme-color" content="#1a56db">
+  <meta name="theme-color" content="#0b4db3">
   {{ if .IsPage }}
   <meta name="news_keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ .Title }}{{ end }}">
   {{ with .Params.categories }}<meta property="article:section" content="{{ index . 0 }}">{{ end }}
   {{ end }}
-
-  {{/* Naver/Daum SEO */}}
   {{ with .Site.Params.naverVerification }}<meta name="naver-site-verification" content="{{ . }}">{{ end }}
-
-  {{/* SEO: Canonical URL */}}
   <link rel="canonical" href="{{ .Permalink }}">
-
-  {{/* Performance: preconnect */}}
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-
-  {{/* RSS autodiscovery */}}
   <link rel="alternate" type="application/rss+xml" title="{{ .Site.Title }}" href="{{ "index.xml" | absURL }}">
-
-  {{/* Open Graph */}}
   <meta property="og:title" content="{{ .Title }}">
   <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
@@ -47,8 +37,6 @@
   <meta property="article:modified_time" content="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}">
   {{ range .Params.tags }}<meta property="article:tag" content="{{ . }}">{{ end }}
   {{ end }}
-
-  {{/* Twitter Card - 이미지 포함 */}}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:site" content="@news_wzd">
   <meta name="twitter:title" content="{{ .Title }}">
@@ -59,29 +47,41 @@
   {{ else }}
   <meta name="twitter:image" content="{{ "images/og-default.png" | absURL }}">
   {{ end }}
-
-  {{/* Pretendard Korean Font */}}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-
-  {{/* Theme CSS */}}
   <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
-
-  {{/* Google Analytics */}}
   {{ partial "analytics.html" . }}
-
-  {{/* Google AdSense */}}
   {{ partial "adsense.html" . }}
-
-  {{/* JSON-LD Structured Data */}}
   {{ partial "seo-head.html" . }}
 </head>
 <body>
+  <div class="top-ad-strip">
+    <div class="container top-ad-inner">
+      <a href="mailto:leejunho2638@gmail.com">배너 영역 문의 바랍니다</a>
+    </div>
+  </div>
+
   <header class="site-header">
-    <div class="container header-inner">
+    <div class="container masthead">
+      <div class="language-links" aria-label="언어 선택">
+        <span>English</span>
+        <span>中文</span>
+        <span>日本語</span>
+        <span>Español</span>
+      </div>
+      <a href="{{ "" | relURL }}" class="site-logo" aria-label="오늘의 트렌드 홈">
+        <svg class="logo-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="28" height="28" rx="6" fill="#0b4db3"/><path d="M7 18l5-5 3 3 6-7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 9h4v4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>오늘의 트렌드</span>
+      </a>
+      <div class="masthead-tools">
+        <time datetime="{{ now.Format "2006-01-02" }}">{{ now.Format "2006.01.02" }}</time>
+        <a href="{{ "" | relURL }}#search" class="header-icon" aria-label="뉴스 검색">⌕</a>
+      </div>
+    </div>
+
+    <div class="container nav-row">
       <button class="menu-toggle" onclick="document.querySelector('.mobile-menu').classList.toggle('open')" aria-label="메뉴">☰</button>
-      <a href="{{ "" | relURL }}" class="site-logo"><svg class="logo-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="28" height="28" rx="6" fill="#1a56db"/><path d="M7 18l5-5 3 3 6-7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 9h4v4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>오늘의 트렌드</a>
-      <nav class="site-nav">
-        <a href="{{ "" | relURL }}">최신글</a>
+      <nav class="site-nav" aria-label="주요 메뉴">
+        <a href="{{ "" | relURL }}">최신뉴스</a>
         <a href="{{ "categories/경제/" | relURL }}">경제</a>
         <a href="{{ "categories/산업/" | relURL }}">산업</a>
         <a href="{{ "categories/사회/" | relURL }}">사회</a>
@@ -93,8 +93,8 @@
         <a href="{{ "categories/IT/" | relURL }}">IT</a>
       </nav>
     </div>
-    <nav class="mobile-menu">
-      <a href="{{ "" | relURL }}">최신글</a>
+    <nav class="mobile-menu" aria-label="모바일 메뉴">
+      <a href="{{ "" | relURL }}">최신뉴스</a>
       <a href="{{ "categories/경제/" | relURL }}">경제</a>
       <a href="{{ "categories/산업/" | relURL }}">산업</a>
       <a href="{{ "categories/사회/" | relURL }}">사회</a>
@@ -107,21 +107,16 @@
     </nav>
   </header>
 
-  <div class="top-banner">
-    <div class="container">
-      <a href="mailto:leejunho2638@gmail.com" class="top-banner-link">배너 영역 문의 바랍니다</a>
-    </div>
-  </div>
-
   <main class="site-main">
-    <div class="container layout-with-sidebar">
+    <div class="container {{ if .IsHome }}layout-home{{ else }}layout-with-sidebar{{ end }}">
       <div class="main-content">
         {{ block "main" . }}{{ end }}
       </div>
+      {{ if not .IsHome }}
       <aside class="sidebar">
         <div class="sidebar-sticky">
           <div class="hot-news">
-            <h3 class="hot-news-title">핫뉴스 ›</h3>
+            <h3 class="hot-news-title">핫뉴스</h3>
             {{ $pages := where .Site.RegularPages "Section" "posts" }}
             {{ $validPages := slice }}
             {{ range $pages.ByDate.Reverse }}
@@ -142,6 +137,7 @@
           </a>
         </div>
       </aside>
+      {{ end }}
     </div>
   </main>
 
