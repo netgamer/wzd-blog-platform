@@ -174,7 +174,7 @@ function queueThreeImageGroup({ blogId, blogSlug, postFilename, postContent, tit
 
 필수 스타일:
 - 단순 풍경 사진 금지. 기사 핵심 장면을 사진처럼 사실적으로 구성하되 뉴스 썸네일용 역동적인 합성
-- 제목의 핵심 문구를 굵고 큰 한국어 헤드라인 2~3줄로 배치
+- 기사 제목 전체를 복사하지 말고 핵심 주제를 4~8자의 짧은 한국어 헤드라인으로 요약해 2~3줄로 배치
 - 흰색·노란색·빨간색 대형 글자, 진한 외곽선과 높은 대비
 - 핵심 인물·장소·사물을 크게 배치하고 필요하면 화살표, 강조 박스, 핵심 숫자 사용
 - 작은 설명문이나 긴 문장 금지, 한눈에 주제가 읽혀야 함
@@ -190,7 +190,7 @@ function queueThreeImageGroup({ blogId, blogSlug, postFilename, postContent, tit
 제목: ${title}
 핵심 내용: ${coreText.slice(0, 1500)}
 
-스타일: 핵심 내용을 시각적으로 요약한 전문 인포그래픽. 다양한 색상, 핵심 수치와 키워드를 큰 한국어 텍스트로 정확히 표시. 정보 구역을 3~5개로 명확히 나누고 아이콘·도표·비교 요소를 활용. 단순 사진이나 썸네일 형식 금지. 정사각형 1:1, 1200x1200 이상 고해상도.`
+스타일: 핵심 내용을 시각적으로 요약한 전문 인포그래픽. 기사 제목 전체를 쓰지 말고 인포그래픽 제목은 핵심 주제 4~8자로 짧게 작성. 다양한 색상, 핵심 수치와 키워드를 큰 한국어 텍스트로 정확히 표시. 정보 구역을 3~5개로 명확히 나누고 아이콘·도표·비교 요소를 활용. 단순 사진이나 썸네일 형식 금지. 정사각형 1:1, 1200x1200 이상 고해상도.`
     },
     {
       ...common,
@@ -211,7 +211,7 @@ function queueThreeImageGroup({ blogId, blogSlug, postFilename, postContent, tit
 - 밝고 컬러풀한 톤, 정사각형 1:1, 1200x1200 이상 고해상도`
     }
   ];
-  imageGroups.set(groupId, { groupId, blogId, blogSlug, postFilename, postContent, title, category, categoryName, researchSourceCount, uploadedRoles: new Set(), createdAt: new Date().toISOString() });
+  imageGroups.set(groupId, { groupId, blogId, blogSlug, postFilename, postContent, title, category, categoryName, researchSourceCount, expectedCount: 3, uploadedRoles: new Set(), createdAt: new Date().toISOString() });
   queue.push(...jobs.map((job, index) => ({ ...job, createdAt: new Date(Date.now() + index).toISOString() })));
   console.log(`[queue] Three-image group queued: ${groupId} (main, mid, comic)`);
   return { groupId, jobs };
@@ -888,8 +888,9 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
       removeFromQueue(job);
 
       const remaining = queue.filter(item => item.groupId === job.groupId && item.status === 'pending').length;
-      console.log(`[upload] Image group ${job.groupId}: ${group.uploadedRoles.size}/3 ready`);
-      if (remaining > 0 || group.uploadedRoles.size < 3) {
+      const expectedCount = group.expectedCount || 3;
+      console.log(`[upload] Image group ${job.groupId}: ${group.uploadedRoles.size}/${expectedCount} ready`);
+      if (remaining > 0 || group.uploadedRoles.size < expectedCount) {
         return res.json({ success: true, message: `${job.imageRole} image saved; ${remaining} image(s) remaining`, remaining });
       }
 
@@ -907,7 +908,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
         category: group.category,
         categoryName: group.categoryName,
         researchSourceCount: group.researchSourceCount,
-        imageCount: 3,
+        imageCount: expectedCount,
         status: 'completed',
         createdAt: group.createdAt,
         completedAt: new Date().toISOString()
@@ -917,7 +918,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
       console.log('[upload] Deploying post + all three images together...');
       deployBlog(group.blogSlug);
-      notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: 대표 + 인포그래픽 + 4컷 (3장)\n파일: ${group.postFilename}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+      notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: ${expectedCount}장 검수 완료\n파일: ${group.postFilename}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
       return res.json({ success: true, message: 'Post + all three images saved and deployed' });
     }
 
@@ -990,6 +991,84 @@ app.post('/api/posts/repair-images', (req, res) => {
     res.json({ success: true, groupId: group.groupId, queued: group.jobs.length });
   } catch (err) {
     console.error('[repair-images] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/posts/repair-headline-images', (req, res) => {
+  try {
+    const { filename, headline } = req.body || {};
+    if (!filename || !headline) return res.status(400).json({ error: 'filename and headline required' });
+    const postPath = safePostPath(filename);
+    if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
+    const postContent = readFileSync(postPath, 'utf-8');
+    const meta = parseFrontmatter(postContent);
+    const title = meta.title || headline;
+    const slug = (meta.image || '').match(/\/images\/(.+)\.png$/)?.[1]
+      || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+    const articleText = postContent
+      .replace(/^---[\s\S]*?---/, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/[#>*|`_~\-\[\]]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1800);
+    const groupId = `headline-${Date.now()}`;
+    const common = {
+      groupId,
+      blogId: 'policy-guide',
+      blogSlug: 'tax-yearend',
+      postFilename: filename,
+      title,
+      category: meta.categories || 'lifestyle',
+      categoryName: meta.categories || '생활·명소',
+      researchSourceCount: 0,
+      status: 'pending'
+    };
+    const jobs = [
+      {
+        ...common,
+        id: `${Date.now()}-main`,
+        imageRole: 'main',
+        imageFilename: `${slug}.png`,
+        imagePrompt: `한국 온라인 뉴스·유튜브 시사 채널의 강렬한 대표 썸네일 이미지를 생성해줘.
+기사 주제: ${title}
+이미지 안의 메인 헤드라인은 정확히 "${headline}"만 사용해. 다른 긴 제목은 넣지 마.
+기사 핵심 장면을 사실적인 사진처럼 역동적으로 합성하고, 메인 헤드라인은 굵은 흰색·노란색 대형 한글과 진한 외곽선으로 표현해.
+단순 풍경 사진 금지. 핵심 장소와 인물을 크게 배치하고 화살표·강조 배지·짧은 안전 키워드를 활용해.
+가로 16:9, 1200x630 이상 고해상도.`
+      },
+      {
+        ...common,
+        id: `${Date.now()}-mid`,
+        imageRole: 'mid',
+        imageFilename: `${slug}-mid.png`,
+        imagePrompt: `전문적인 한국어 인포그래픽 이미지를 생성해줘.
+인포그래픽 제목은 정확히 "${headline}"만 사용해. "방문 팁"이나 긴 기사 제목은 이미지에 넣지 마.
+기사 핵심 내용: ${articleText}
+핵심 정보를 3~5개 구역으로 나누고 큰 한국어 키워드, 아이콘, 체크리스트, 비교 요소로 시각화해. 작은 장문은 피하고 정확한 정보만 사용해.
+정사각형 1:1, 1200x1200 이상 고해상도.`
+      }
+    ];
+    imageGroups.set(groupId, {
+      groupId,
+      blogId: 'policy-guide',
+      blogSlug: 'tax-yearend',
+      postFilename: filename,
+      postContent,
+      title,
+      category: common.category,
+      categoryName: common.categoryName,
+      researchSourceCount: 0,
+      expectedCount: 2,
+      uploadedRoles: new Set(),
+      createdAt: new Date().toISOString()
+    });
+    queue.push(...jobs.map((job, index) => ({ ...job, createdAt: new Date(Date.now() + index).toISOString() })));
+    console.log(`[queue] Headline image repair queued: ${groupId} (main, mid)`);
+    res.json({ success: true, groupId, queued: jobs.length });
+  } catch (err) {
+    console.error('[repair-headline-images] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
