@@ -612,10 +612,11 @@ app.get('/api/jobs', (req, res) => {
 function deployBlog(blogSlug) {
   console.log(`[deploy] Building and pushing ${blogSlug}...`);
   try {
-    execSync(`wsl -- bash -c "export PATH=\\$HOME/.nvm/versions/node/v25.8.2/bin:\\$PATH && cd ${PROJECT_ROOT_WSL} && git add -A && git commit -m 'post: auto-generated for ${blogSlug}' && git push"`, {
-      stdio: 'pipe',
-      timeout: 60000
-    });
+    const commitMessage = `post: auto-generated for ${blogSlug}`;
+    const command = process.platform === 'win32'
+      ? `git -C "${PROJECT_ROOT}" add -A && git -C "${PROJECT_ROOT}" commit -m "${commitMessage}" && git -C "${PROJECT_ROOT}" push origin main`
+      : `git add -A && git commit -m "${commitMessage}" && git push origin main`;
+    execSync(command, { cwd: PROJECT_ROOT, stdio: 'pipe', timeout: 120000 });
     console.log(`[deploy] Pushed to GitHub. GitHub Actions will build and deploy.`);
   } catch (err) {
     console.log(`[deploy] Git push result:`, err.stdout?.toString().slice(0, 200) || err.message);
