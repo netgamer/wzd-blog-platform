@@ -122,6 +122,7 @@ function validateNewsImage(buffer) {
 // --- Queue ---
 const queue = [];     // pending image jobs
 const completed = []; // completed jobs
+const failed = [];    // failed jobs that must not be published
 
 // --- Registry ---
 function getRegistry() {
@@ -698,7 +699,26 @@ app.post('/api/deploy', (req, res) => {
 
 // Get job status
 app.get('/api/jobs', (req, res) => {
-  res.json({ pending: queue.filter(j => j.status === 'pending'), completed });
+  res.json({ pending: queue.filter(j => j.status === 'pending'), completed, failed });
+});
+
+app.post('/api/image-error', (req, res) => {
+  const { jobId, error, resetAt, stopScheduler } = req.body || {};
+  if (!jobId) return res.status(400).json({ error: 'jobId required' });
+
+  const idx = queue.findIndex(j => String(j.id) === String(jobId));
+  const job = idx >= 0 ? queue.splice(idx, 1)[0] : { id: jobId, title: 'unknown' };
+  job.status = 'failed';
+  job.error = error || 'image-error';
+  job.resetAt = resetAt || null;
+  job.failedAt = new Date().toISOString();
+  failed.push(job);
+
+  if (stopScheduler) stopSchedulerNow();
+
+  console.log(`[image-error] ${job.id} ${job.title}: ${job.error}${job.resetAt ? ` resetAt=${job.resetAt}` : ''}`);
+  notifyTelegram(`⏸️ *자동 포스팅 중지*\n\n사유: ${job.error}\n제목: ${job.title}\n${job.resetAt ? `재개 가능 시간: ${job.resetAt}` : ''}\n\n이미지 없는 글은 발행하지 않고 대기 작업을 내렸습니다.`);
+  res.json({ success: true, stopped: Boolean(stopScheduler), job });
 });
 
 function requireAdmin(req, res, next) {
@@ -732,14 +752,15 @@ function safePostPath(filename) {
 app.get('/api/dashboard', (req, res) => {
   const category = getCurrentCategory();
   const pending = queue.filter(j => j.status === 'pending');
-  const latest = pending[0] || completed[completed.length - 1] || null;
+  const latest = pending[0] || failed[failed.length - 1] || completed[completed.length - 1] || null;
+  const latestStatus = latest?.status || '';
   res.json({
     health: { status: 'ok', queue: queue.length, completed: completed.length },
     cron: { running: schedulerRunning },
     counts: { pendingTexts: 0, pendingImages: pending.length },
     currentRun: latest ? {
-      status: latest.status === 'completed' ? 'completed' : 'running',
-      phase: latest.status === 'completed' ? 'published' : 'waiting-extension-image',
+      status: latestStatus === 'completed' ? 'completed' : latestStatus === 'failed' ? 'failed' : 'running',
+      phase: latestStatus === 'completed' ? 'published' : latestStatus === 'failed' ? 'image-error' : 'waiting-extension-image',
       topicTitle: latest.title,
       category,
       categoryName: CATEGORIES[category]?.name || category,
@@ -747,7 +768,7 @@ app.get('/api/dashboard', (req, res) => {
       researchSourceCount: 0,
       postFilename: latest.postFilename,
       startedAt: latest.createdAt,
-      error: ''
+      error: latest.error || ''
     } : {
       status: schedulerRunning ? 'idle' : 'stopped',
       phase: schedulerRunning ? 'waiting-next-run' : '',
@@ -756,6 +777,7 @@ app.get('/api/dashboard', (req, res) => {
     },
     recentEvents: [
       ...pending.map(j => ({ time: j.createdAt, type: 'image-queued', message: `이미지 대기: ${j.title}` })),
+      ...failed.slice(-15).map(j => ({ time: j.failedAt || j.createdAt, type: 'failed', message: `발행 중지: ${j.title} (${j.error || 'image-error'})` })),
       ...completed.slice(-15).map(j => ({ time: j.completedAt || j.createdAt, type: 'published', message: `발행 완료: ${j.title}` }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 20)
   });
@@ -927,8 +949,23 @@ async function generateImageViaCDP(job) {
 // --- Hourly Scheduler ---
 
 let schedulerRunning = false;
+let schedulerTimeout = null;
+let schedulerInterval = null;
+
+function stopSchedulerNow() {
+  schedulerRunning = false;
+  if (schedulerTimeout) clearTimeout(schedulerTimeout);
+  if (schedulerInterval) clearInterval(schedulerInterval);
+  schedulerTimeout = null;
+  schedulerInterval = null;
+}
 
 async function hourlyTask() {
+  if (!schedulerRunning) {
+    console.log('[cron] Skipped because scheduler is stopped');
+    return;
+  }
+
   const now = new Date();
   const kstHour = (now.getUTCHours() + 9) % 24;
   const category = getCurrentCategory();
@@ -978,16 +1015,16 @@ app.post('/api/cron/start', (req, res) => {
   // Run every hour at :00
   const now = new Date();
   const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000;
-  setTimeout(() => {
+  schedulerTimeout = setTimeout(() => {
     hourlyTask();
-    setInterval(hourlyTask, 60 * 60 * 1000); // every hour
+    schedulerInterval = setInterval(hourlyTask, 60 * 60 * 1000); // every hour
   }, msUntilNextHour);
   console.log(`[cron] Scheduler started. Next run in ${Math.floor(msUntilNextHour / 60000)}분`);
   res.json({ success: true, message: `Scheduler started. Next run in ${Math.floor(msUntilNextHour / 60000)} min` });
 });
 
 app.post('/api/cron/stop', (req, res) => {
-  schedulerRunning = false;
+  stopSchedulerNow();
   res.json({ success: true, message: 'Scheduler stopped' });
 });
 
