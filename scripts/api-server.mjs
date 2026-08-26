@@ -600,7 +600,22 @@ image: "/images/${imageFilename}"
   }
 });
 
-// Chrome Extension polls this for pending jobs
+// Chrome Extension compatibility: text is generated server-side now,
+// but the extension checks this endpoint before image jobs.
+app.get('/api/text-queue', (req, res) => {
+  res.json([]);
+});
+
+app.post('/api/text-complete', (req, res) => {
+  res.json({ success: true, message: 'No pending text jobs; server-side text generation is active.' });
+});
+
+app.post('/api/text-error', (req, res) => {
+  console.warn('[text-error] Extension reported:', req.body?.jobId, req.body?.error);
+  res.json({ success: true });
+});
+
+// Chrome Extension polls this for pending image jobs
 app.get('/api/queue', (req, res) => {
   const pending = queue.filter(j => j.status === 'pending');
   res.json(pending);
