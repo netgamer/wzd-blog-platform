@@ -124,10 +124,97 @@ const queue = [];     // pending image jobs
 const textQueue = []; // pending ChatGPT text jobs
 const completed = []; // completed jobs
 const failed = [];    // failed jobs that must not be published
+const imageGroups = new Map();
 
 function removeFromQueue(job) {
   const idx = queue.findIndex(item => item.id === job.id);
   if (idx >= 0) queue.splice(idx, 1);
+}
+
+function insertArticleImages(content, slug, title) {
+  const clean = content
+    .replace(/<figure class="post-mid-image">[\s\S]*?<\/figure>/g, '')
+    .replace(/<figure class="post-comic">[\s\S]*?<\/figure>/g, '')
+    .trim();
+  const lines = clean.split('\n');
+  const midpoint = Math.floor(lines.length * 0.45);
+  let insertAt = lines.findIndex((line, index) => index >= midpoint && /^##\s/.test(line));
+  if (insertAt < 0) insertAt = midpoint;
+  const midFigure = `<figure class="post-mid-image">
+  <img src="/images/${slug}-mid.png" alt="${title.replace(/"/g, '&quot;')} 인포그래픽" loading="lazy">
+</figure>`;
+  lines.splice(insertAt, 0, '', midFigure, '');
+  const comicFigure = `<figure class="post-comic">
+  <figcaption>오늘의 시사 4컷</figcaption>
+  <img src="/images/${slug}-comic.png" alt="${title.replace(/"/g, '&quot;')} 4컷만화" loading="lazy">
+</figure>`;
+  return `${lines.join('\n').trim()}\n\n---\n\n${comicFigure}\n`;
+}
+
+function queueThreeImageGroup({ blogId, blogSlug, postFilename, postContent, title, category, categoryName, researchSourceCount = 0, slug, articleContent }) {
+  const groupId = `group-${Date.now()}`;
+  const coreText = articleContent
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[#>*|`_~\-\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 2200);
+  const common = { groupId, blogId, blogSlug, postFilename, title, category, categoryName, researchSourceCount, status: 'pending' };
+  const jobs = [
+    {
+      ...common,
+      id: `${Date.now()}-main`,
+      imageRole: 'main',
+      imageFilename: `${slug}.png`,
+      imagePrompt: `이미지를 생성해줘. 웹 검색하지 말고 직접 새 이미지를 그려줘.
+
+한국 온라인 뉴스·유튜브 시사 채널의 강렬한 대표 썸네일을 제작해줘.
+기사 제목: ${title}
+핵심 내용: ${coreText.slice(0, 900)}
+
+필수 스타일:
+- 단순 풍경 사진 금지. 기사 핵심 장면을 사진처럼 사실적으로 구성하되 뉴스 썸네일용 역동적인 합성
+- 제목의 핵심 문구를 굵고 큰 한국어 헤드라인 2~3줄로 배치
+- 흰색·노란색·빨간색 대형 글자, 진한 외곽선과 높은 대비
+- 핵심 인물·장소·사물을 크게 배치하고 필요하면 화살표, 강조 박스, 핵심 숫자 사용
+- 작은 설명문이나 긴 문장 금지, 한눈에 주제가 읽혀야 함
+- 가로 16:9, 1200x630 이상 고해상도, 전문 뉴스 썸네일 느낌`
+    },
+    {
+      ...common,
+      id: `${Date.now()}-mid`,
+      imageRole: 'mid',
+      imageFilename: `${slug}-mid.png`,
+      imagePrompt: `이미지를 생성해줘. 웹 검색하지 말고 직접 새 이미지를 그려줘.
+
+제목: ${title}
+핵심 내용: ${coreText.slice(0, 1500)}
+
+스타일: 핵심 내용을 시각적으로 요약한 전문 인포그래픽. 다양한 색상, 핵심 수치와 키워드를 큰 한국어 텍스트로 정확히 표시. 정보 구역을 3~5개로 명확히 나누고 아이콘·도표·비교 요소를 활용. 단순 사진이나 썸네일 형식 금지. 정사각형 1:1, 1200x1200 이상 고해상도.`
+    },
+    {
+      ...common,
+      id: `${Date.now()}-comic`,
+      imageRole: 'comic',
+      imageFilename: `${slug}-comic.png`,
+      imagePrompt: `이미지를 생성해줘. 웹 검색하지 말고 직접 새 이미지를 그려줘.
+
+제목: ${title}
+핵심 내용: ${coreText.slice(0, 1300)}
+
+4컷 시사 만화를 그려줘:
+- 2x2 그리드 4컷, 번호 없이 왼쪽 위부터 순서대로
+- 뉴스 내용을 이해하기 쉽게 재치 있게 표현
+- 둥근 얼굴과 분명한 표정의 친근한 한국 만화 스타일
+- 각 컷에 짧고 자연스러운 한국어 말풍선
+- 마지막 컷은 핵심 교훈이나 가벼운 반전
+- 밝고 컬러풀한 톤, 정사각형 1:1, 1200x1200 이상 고해상도`
+    }
+  ];
+  imageGroups.set(groupId, { groupId, blogId, blogSlug, postFilename, postContent, title, category, categoryName, researchSourceCount, uploadedRoles: new Set(), createdAt: new Date().toISOString() });
+  queue.push(...jobs.map((job, index) => ({ ...job, createdAt: new Date(Date.now() + index).toISOString() })));
+  console.log(`[queue] Three-image group queued: ${groupId} (main, mid, comic)`);
+  return { groupId, jobs };
 }
 
 // --- Registry ---
@@ -717,28 +804,22 @@ author: "오늘의 트렌드"
 image: "/images/${imageFilename}"
 ---`;
 
-  const imageJob = {
-    id: Date.now().toString(),
+  textQueue.splice(idx, 1);
+  const enrichedContent = insertArticleImages(content, slug, textJob.title);
+  const group = queueThreeImageGroup({
     blogId: textJob.blogId,
     blogSlug: textJob.blogSlug,
     postFilename,
-    postContent: `${frontmatter}\n\n${content}\n`,
-    imageFilename,
-    imagePrompt: `한국 뉴스 기사 "${textJob.title}" 주제의 고품질 뉴스 썸네일 이미지를 만들어줘.
-단순 색상 카드나 템플릿 배경은 금지. 기사와 직접 관련된 실제적인 사람, 장소, 사물 또는 현장 장면을 구체적으로 보여줘.
-전문 언론 썸네일 느낌, 가로 16:9 비율, 1200x630 이상 고해상도.`,
+    postContent: `${frontmatter}\n\n${enrichedContent}`,
     title: textJob.title,
     category: textJob.category,
     categoryName: textJob.categoryName,
     researchSourceCount: textJob.researchSourceCount,
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  };
-
-  textQueue.splice(idx, 1);
-  queue.push(imageJob);
-  console.log(`[text-complete] Text accepted (${content.length} chars), image queued: ${imageJob.id}`);
-  res.json({ success: true, job: imageJob });
+    slug,
+    articleContent: content
+  });
+  console.log(`[text-complete] Text accepted (${content.length} chars), three images queued: ${group.groupId}`);
+  res.json({ success: true, groupId: group.groupId, jobs: group.jobs.map(job => ({ id: job.id, imageRole: job.imageRole, imageFilename: job.imageFilename })) });
 });
 
 app.post('/api/text-error', (req, res) => {
@@ -797,6 +878,49 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     writeFileSync(imagePath, req.file.buffer);
     console.log(`[upload] Image saved: ${imagePath} (${imageCheck.width}x${imageCheck.height}, ${(req.file.buffer.length / 1024).toFixed(0)}KB)`);
 
+    if (job.groupId) {
+      const group = imageGroups.get(job.groupId);
+      if (!group) return res.status(409).json({ error: 'Image group not found; retry the article image generation' });
+
+      job.status = 'completed';
+      job.completedAt = new Date().toISOString();
+      group.uploadedRoles.add(job.imageRole);
+      removeFromQueue(job);
+
+      const remaining = queue.filter(item => item.groupId === job.groupId && item.status === 'pending').length;
+      console.log(`[upload] Image group ${job.groupId}: ${group.uploadedRoles.size}/3 ready`);
+      if (remaining > 0 || group.uploadedRoles.size < 3) {
+        return res.json({ success: true, message: `${job.imageRole} image saved; ${remaining} image(s) remaining`, remaining });
+      }
+
+      const postsDir = join(PROJECT_ROOT, 'sites', group.blogSlug, 'content', 'posts');
+      mkdirSync(postsDir, { recursive: true });
+      writeFileSync(join(postsDir, group.postFilename), group.postContent, 'utf-8');
+      console.log(`[upload] All three images ready. Post saved: ${group.postFilename}`);
+
+      const completedGroup = {
+        id: group.groupId,
+        blogId: group.blogId,
+        blogSlug: group.blogSlug,
+        postFilename: group.postFilename,
+        title: group.title,
+        category: group.category,
+        categoryName: group.categoryName,
+        researchSourceCount: group.researchSourceCount,
+        imageCount: 3,
+        status: 'completed',
+        createdAt: group.createdAt,
+        completedAt: new Date().toISOString()
+      };
+      completed.push(completedGroup);
+      imageGroups.delete(group.groupId);
+
+      console.log('[upload] Deploying post + all three images together...');
+      deployBlog(group.blogSlug);
+      notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: 대표 + 인포그래픽 + 4컷 (3장)\n파일: ${group.postFilename}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+      return res.json({ success: true, message: 'Post + all three images saved and deployed' });
+    }
+
     // 2. NOW save the post (only after image is ready)
     const postsDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'content', 'posts');
     mkdirSync(postsDir, { recursive: true });
@@ -835,6 +959,41 @@ app.post('/api/deploy', (req, res) => {
   }
 });
 
+app.post('/api/posts/repair-images', (req, res) => {
+  try {
+    const { filename } = req.body || {};
+    if (!filename) return res.status(400).json({ error: 'filename required' });
+    const postPath = safePostPath(filename);
+    if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
+
+    const original = readFileSync(postPath, 'utf-8');
+    const frontmatterMatch = original.match(/^---\s*\n[\s\S]*?\n---/);
+    if (!frontmatterMatch) return res.status(400).json({ error: 'Post frontmatter missing' });
+    const meta = parseFrontmatter(original);
+    const title = meta.title || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+    const slug = (meta.image || '').match(/\/images\/(.+)\.png$/)?.[1]
+      || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+    const body = original.slice(frontmatterMatch[0].length).trim();
+    const enrichedBody = insertArticleImages(body, slug, title);
+    const group = queueThreeImageGroup({
+      blogId: 'policy-guide',
+      blogSlug: 'tax-yearend',
+      postFilename: filename,
+      postContent: `${frontmatterMatch[0]}\n\n${enrichedBody}`,
+      title,
+      category: meta.categories || 'lifestyle',
+      categoryName: meta.categories || '생활·명소',
+      researchSourceCount: 0,
+      slug,
+      articleContent: body
+    });
+    res.json({ success: true, groupId: group.groupId, queued: group.jobs.length });
+  } catch (err) {
+    console.error('[repair-images] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get job status
 app.get('/api/jobs', (req, res) => {
   res.json({
@@ -851,6 +1010,12 @@ app.post('/api/image-error', (req, res) => {
 
   const idx = queue.findIndex(j => String(j.id) === String(jobId));
   const job = idx >= 0 ? queue.splice(idx, 1)[0] : { id: jobId, title: 'unknown' };
+  if (job.groupId) {
+    for (let i = queue.length - 1; i >= 0; i -= 1) {
+      if (queue[i].groupId === job.groupId) queue.splice(i, 1);
+    }
+    imageGroups.delete(job.groupId);
+  }
   job.status = 'failed';
   job.error = error || 'image-error';
   job.resetAt = resetAt || null;
