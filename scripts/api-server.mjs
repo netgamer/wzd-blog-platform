@@ -71,6 +71,53 @@ app.get(['/admin', '/admin/'], (req, res) => {
 
 // Image upload storage
 const upload = multer({ storage: multer.memoryStorage() });
+const MIN_IMAGE_BYTES = 120 * 1024;
+const MIN_IMAGE_WIDTH = 900;
+const MIN_IMAGE_HEIGHT = 480;
+
+function getImageDimensions(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 24) return null;
+
+  const pngSig = '89504e470d0a1a0a';
+  if (buffer.subarray(0, 8).toString('hex') === pngSig) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20), type: 'png' };
+  }
+
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset < buffer.length) {
+      if (buffer[offset] !== 0xff) break;
+      const marker = buffer[offset + 1];
+      const length = buffer.readUInt16BE(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        return { width: buffer.readUInt16BE(offset + 7), height: buffer.readUInt16BE(offset + 5), type: 'jpg' };
+      }
+      offset += 2 + length;
+    }
+  }
+
+  return null;
+}
+
+function validateNewsImage(buffer) {
+  const dimensions = getImageDimensions(buffer);
+  if (!dimensions) {
+    return { ok: false, reason: '이미지 크기를 확인할 수 없습니다.' };
+  }
+  if (dimensions.width < MIN_IMAGE_WIDTH || dimensions.height < MIN_IMAGE_HEIGHT) {
+    return {
+      ok: false,
+      reason: `이미지가 너무 작습니다. 현재 ${dimensions.width}x${dimensions.height}, 최소 ${MIN_IMAGE_WIDTH}x${MIN_IMAGE_HEIGHT}`
+    };
+  }
+  if (buffer.length < MIN_IMAGE_BYTES) {
+    return {
+      ok: false,
+      reason: `이미지 파일 용량이 너무 작습니다. 현재 ${(buffer.length / 1024).toFixed(0)}KB, 최소 ${MIN_IMAGE_BYTES / 1024}KB`
+    };
+  }
+  return { ok: true, ...dimensions };
+}
 
 // --- Queue ---
 const queue = [];     // pending image jobs
@@ -525,10 +572,9 @@ image: "/images/${imageFilename}"
     console.log(`[generate] Post prepared (NOT saved yet, waiting for image): ${filename}`);
 
     // 4. Create image prompt
-    const imagePrompt = `한국 ${blogConfig.topic} 관련 "${cleanTitle}" 주제의 인포그래픽 이미지를 만들어줘.
-깔끔하고 현대적인 카드뉴스 스타일, 파란색과 흰색 중심의 컬러 팔레트.
-핵심 내용을 3-4개 카드/단계로 시각화. 각 단계에 아이콘 포함.
-한국 정부 정책 안내 인포그래픽 느낌. 가로 16:9 비율. 1200x630 사이즈.`;
+    const imagePrompt = `한국 ${blogConfig.topic} 관련 "${cleanTitle}" 주제의 고품질 뉴스 썸네일 이미지를 만들어줘.
+단순한 색상 카드나 템플릿 배경은 금지. 기사 내용과 직접 관련된 사람, 장소, 사물, 문서, 현장 장면을 구체적으로 보여줘.
+블로그 대표 이미지로 바로 쓸 수 있게 선명하고 풍부한 디테일, 전문 언론 썸네일 느낌. 가로 16:9 비율, 1200x630 이상 고해상도.`;
 
     // 5. Queue image job (post content stored in memory until image is ready)
     const job = {
@@ -569,12 +615,21 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file' });
 
   try {
+    const imageCheck = validateNewsImage(req.file.buffer);
+    if (!imageCheck.ok) {
+      job.status = 'image-rejected';
+      job.error = imageCheck.reason;
+      console.warn(`[upload] Image rejected for ${job.title}: ${imageCheck.reason}`);
+      notifyTelegram(`⚠️ 이미지 품질 미달로 발행 중단\n\n제목: ${job.title}\n사유: ${imageCheck.reason}`);
+      return res.status(400).json({ error: imageCheck.reason });
+    }
+
     // 1. Save image
     const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
     mkdirSync(imagesDir, { recursive: true });
     const imagePath = join(imagesDir, job.imageFilename);
     writeFileSync(imagePath, req.file.buffer);
-    console.log(`[upload] Image saved: ${imagePath} (${(req.file.buffer.length / 1024).toFixed(0)}KB)`);
+    console.log(`[upload] Image saved: ${imagePath} (${imageCheck.width}x${imageCheck.height}, ${(req.file.buffer.length / 1024).toFixed(0)}KB)`);
 
     // 2. NOW save the post (only after image is ready)
     const postsDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'content', 'posts');
@@ -800,10 +855,19 @@ async function generateImageViaCDP(job) {
 
     // Save image
     const buf = Buffer.from(base64, 'base64');
+    const imageCheck = validateNewsImage(buf);
+    if (!imageCheck.ok) {
+      console.log(`[cdp] Image rejected: ${imageCheck.reason}`);
+      job.status = 'image-rejected';
+      job.error = imageCheck.reason;
+      notifyTelegram(`⚠️ 이미지 품질 미달로 발행 중단\n\n제목: ${job.title}\n사유: ${imageCheck.reason}`);
+      return false;
+    }
+
     const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
     mkdirSync(imagesDir, { recursive: true });
     writeFileSync(join(imagesDir, job.imageFilename), buf);
-    console.log(`[cdp] Image saved: ${job.imageFilename} (${(buf.length / 1024).toFixed(0)}KB)`);
+    console.log(`[cdp] Image saved: ${job.imageFilename} (${imageCheck.width}x${imageCheck.height}, ${(buf.length / 1024).toFixed(0)}KB)`);
 
     // Save post
     const postsDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'content', 'posts');
