@@ -195,27 +195,40 @@ async function searchWeb(query, numResults = 5) {
       .filter(u => u.startsWith('http'))
       .slice(0, numResults);
 
-    console.log(`[research] Found ${urls.length} URLs`);
-    return urls;
+    if (urls.length > 0) {
+      console.log(`[research] DuckDuckGo: ${urls.length} URLs`);
+      return urls;
+    }
+    console.warn('[research] DuckDuckGo returned no results; trying Bing News RSS');
   } catch (e) {
     console.warn('[research] Search failed:', e.message);
-    // Fallback: Google search via scraping
-    try {
-      const gUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=ko&num=5`;
-      const gRes = await fetch(gUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: AbortSignal.timeout(10000)
-      });
-      const gHtml = await gRes.text();
-      const gUrls = [...gHtml.matchAll(/href="\/url\?q=(.*?)&/g)]
-        .map(m => decodeURIComponent(m[1]))
-        .filter(u => u.startsWith('http') && !u.includes('google.com'))
-        .slice(0, numResults);
-      console.log(`[research] Google fallback: ${gUrls.length} URLs`);
-      return gUrls;
-    } catch {
-      return [];
-    }
+  }
+
+  try {
+    const rssUrl = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&mkt=ko-KR`;
+    const rssRes = await fetch(rssUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!rssRes.ok) throw new Error(`Bing RSS ${rssRes.status}`);
+    const rss = await rssRes.text();
+    const links = [...rss.matchAll(/<link>([\s\S]*?)<\/link>/g)]
+      .map(match => match[1].replace(/&amp;/g, '&').trim())
+      .map(link => {
+        try {
+          const parsed = new URL(link);
+          return parsed.searchParams.get('url') || link;
+        } catch {
+          return link;
+        }
+      })
+      .filter(link => link.startsWith('http') && !link.includes('bing.com/news/search'))
+      .slice(0, numResults);
+    console.log(`[research] Bing News RSS: ${links.length} URLs`);
+    return links;
+  } catch (e) {
+    console.warn('[research] Bing News RSS failed:', e.message);
+    return [];
   }
 }
 
@@ -242,11 +255,11 @@ async function fetchPageContent(url) {
   }
 }
 
-async function researchTopic(topic) {
+async function researchTopic(topic, category) {
   console.log(`[research] Researching: ${topic}`);
 
   // Search for related articles
-  const searchSuffix = CATEGORIES[getCurrentCategory()]?.searchSuffix || '2026 총정리';
+  const searchSuffix = CATEGORIES[category]?.searchSuffix || '2026 총정리';
   const urls = await searchWeb(`${topic} ${searchSuffix}`);
 
   // Fetch content from top results
@@ -451,8 +464,12 @@ app.post('/api/generate', async (req, res) => {
 
     // 1. Web Research - 관련 기사 5개 검색 + 내용 수집
     console.log(`[generate] Researching: ${topicTitle}`);
-    const research = await researchTopic(topicTitle);
+    const research = await researchTopic(topicTitle, category);
     console.log(`[generate] Research done: ${research.count} sources collected`);
+
+    if (research.count < 2) {
+      throw new Error(`검증 가능한 출처가 부족합니다 (${research.count}/2). 이번 포스트는 발행하지 않습니다.`);
+    }
 
     await new Promise(r => setTimeout(r, 2000));
 
@@ -461,7 +478,10 @@ app.post('/api/generate', async (req, res) => {
 
     const systemPrompt = `${cat.systemPrompt}
 존댓말 사용. 전문용어는 괄호 설명. 표(테이블) 활용. 마크다운 ##부터 시작.
-구체적인 수치/날짜/장소 포함. 최대한 길고 상세하게 작성.`;
+현재 날짜는 ${new Date().toISOString().split('T')[0]}입니다.
+참고 자료에 명시된 사실만 사용하고, 확인되지 않은 주소·가격·운영시간·날짜·인물·수치를 만들지 마세요.
+확인할 수 없는 항목은 생략하거나 "방문 전 공식 안내 확인"으로 표시하세요.
+구체적인 수치/날짜/장소는 참고 자료에서 확인된 경우에만 포함. 최대한 길고 상세하게 작성.`;
 
     // Category-specific part prompts
     const partPrompts = {
@@ -568,8 +588,8 @@ ${prompts.part2}
 title: "${cleanTitle.replace(/"/g, '\\"')}"
 date: ${date}
 description: "${excerpt.trim().replace(/"/g, '\\"')}"
-categories: ["${blogConfig.topic}"]
-tags: [${blogConfig.keywords.slice(0, 5).map(t => `"${t}"`).join(', ')}]
+categories: ["${cat.name}"]
+tags: ["${topicTitle.replace(/"/g, '\\"')}", "${cat.name}"]
 author: "${blogConfig.name}"
 image: "/images/${imageFilename}"
 ---`;
