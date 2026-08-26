@@ -12,7 +12,7 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
@@ -58,6 +58,16 @@ if (existsSync(envPath)) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const adminDir = join(PROJECT_ROOT, 'sites', 'tax-yearend', 'static', 'admin');
+app.use('/admin', express.static(adminDir));
+app.use('/blog-images', express.static(join(PROJECT_ROOT, 'sites', 'tax-yearend', 'static', 'images')));
+app.get('/dashboard', (req, res) => {
+  res.redirect('/admin/');
+});
+app.get(['/admin', '/admin/'], (req, res) => {
+  res.sendFile('index.html', { root: adminDir });
+});
 
 // Image upload storage
 const upload = multer({ storage: multer.memoryStorage() });
@@ -606,6 +616,104 @@ app.post('/api/deploy', (req, res) => {
 // Get job status
 app.get('/api/jobs', (req, res) => {
   res.json({ pending: queue.filter(j => j.status === 'pending'), completed });
+});
+
+function requireAdmin(req, res, next) {
+  const expected = process.env.ADMIN_PASSWORD || process.env.ADMIN_PW || '';
+  const provided = req.get('X-Admin-Password') || req.query.pw || '';
+  if (expected && provided !== expected) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
+
+function parseFrontmatter(text) {
+  const match = text.match(/^---\s*\n([\s\S]*?)\n---/);
+  const data = {};
+  if (!match) return data;
+  for (const line of match[1].split(/\r?\n/)) {
+    const idx = line.indexOf(':');
+    if (idx < 0) continue;
+    const key = line.slice(0, idx).trim();
+    let value = line.slice(idx + 1).trim();
+    value = value.replace(/^["']|["']$/g, '');
+    data[key] = value;
+  }
+  return data;
+}
+
+function safePostPath(filename) {
+  const clean = filename.replace(/[\\/]/g, '');
+  if (!clean.endsWith('.md')) throw new Error('Invalid filename');
+  return join(PROJECT_ROOT, 'sites', 'tax-yearend', 'content', 'posts', clean);
+}
+
+app.get('/api/dashboard', (req, res) => {
+  const category = getCurrentCategory();
+  const pending = queue.filter(j => j.status === 'pending');
+  const latest = pending[0] || completed[completed.length - 1] || null;
+  res.json({
+    health: { status: 'ok', queue: queue.length, completed: completed.length },
+    cron: { running: schedulerRunning },
+    counts: { pendingTexts: 0, pendingImages: pending.length },
+    currentRun: latest ? {
+      status: latest.status === 'completed' ? 'completed' : 'running',
+      phase: latest.status === 'completed' ? 'published' : 'waiting-extension-image',
+      topicTitle: latest.title,
+      category,
+      categoryName: CATEGORIES[category]?.name || category,
+      title: latest.title,
+      researchSourceCount: 0,
+      postFilename: latest.postFilename,
+      startedAt: latest.createdAt,
+      error: ''
+    } : {
+      status: schedulerRunning ? 'idle' : 'stopped',
+      phase: schedulerRunning ? 'waiting-next-run' : '',
+      category,
+      categoryName: CATEGORIES[category]?.name || category
+    },
+    recentEvents: [
+      ...pending.map(j => ({ time: j.createdAt, type: 'image-queued', message: `이미지 대기: ${j.title}` })),
+      ...completed.slice(-15).map(j => ({ time: j.completedAt || j.createdAt, type: 'published', message: `발행 완료: ${j.title}` }))
+    ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 20)
+  });
+});
+
+app.get('/api/admin/posts', requireAdmin, (req, res) => {
+  const postsDir = join(PROJECT_ROOT, 'sites', 'tax-yearend', 'content', 'posts');
+  const posts = readdirSync(postsDir)
+    .filter(name => name.endsWith('.md'))
+    .map(filename => {
+      const full = join(postsDir, filename);
+      const text = readFileSync(full, 'utf-8');
+      const fm = parseFrontmatter(text);
+      return {
+        filename,
+        title: fm.title || filename.replace(/\.md$/, ''),
+        date: fm.date || '',
+        category: fm.categories || '',
+        image: fm.image || '',
+        size: statSync(full).size
+      };
+    })
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.filename.localeCompare(a.filename));
+  res.json(posts);
+});
+
+app.post('/api/admin/delete', requireAdmin, (req, res) => {
+  const postPath = safePostPath(req.body.filename || '');
+  if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
+  const fm = parseFrontmatter(readFileSync(postPath, 'utf-8'));
+  rmSync(postPath, { force: true });
+  if (fm.image) {
+    const imageName = fm.image.replace('/images/', '').replace(/[\\/]/g, '');
+    rmSync(join(PROJECT_ROOT, 'sites', 'tax-yearend', 'static', 'images', imageName), { force: true });
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/admin/deploy', requireAdmin, (req, res) => {
+  deployBlog('tax-yearend');
+  res.json({ success: true });
 });
 
 // --- Deploy ---
