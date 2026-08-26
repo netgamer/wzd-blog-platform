@@ -124,6 +124,11 @@ const queue = [];     // pending image jobs
 const completed = []; // completed jobs
 const failed = [];    // failed jobs that must not be published
 
+function removeFromQueue(job) {
+  const idx = queue.findIndex(item => item.id === job.id);
+  if (idx >= 0) queue.splice(idx, 1);
+}
+
 // --- Registry ---
 function getRegistry() {
   return JSON.parse(readFileSync(join(PROJECT_ROOT, 'data', 'blog-registry.json'), 'utf-8'));
@@ -671,6 +676,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     job.completedAt = new Date().toISOString();
     delete job.postContent; // free memory
     completed.push(job);
+    removeFromQueue(job);
 
     // 4. Deploy (post + image together)
     console.log(`[upload] Deploying post + image together...`);
@@ -930,6 +936,7 @@ async function generateImageViaCDP(job) {
     job.completedAt = new Date().toISOString();
     delete job.postContent;
     completed.push(job);
+    removeFromQueue(job);
 
     // Deploy
     deployBlog(job.blogSlug);
