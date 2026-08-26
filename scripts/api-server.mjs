@@ -606,6 +606,19 @@ app.get('/api/queue', (req, res) => {
   res.json(pending);
 });
 
+app.post('/api/queue/process', async (req, res) => {
+  const job = queue.find(j => j.status === 'pending');
+  if (!job) return res.status(404).json({ error: 'No pending image job' });
+
+  try {
+    const ok = await generateImageViaCDP(job);
+    res.json({ success: ok, jobId: job.id, status: job.status, error: job.error || '' });
+  } catch (err) {
+    console.error('[queue/process] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Chrome Extension uploads completed image
 app.post('/api/upload', upload.single('image'), (req, res) => {
   const { jobId } = req.body;
