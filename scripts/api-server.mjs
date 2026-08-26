@@ -72,7 +72,7 @@ function getRegistry() {
 }
 
 // --- Groq Content Generation ---
-async function generateWithGroq(systemPrompt, userPrompt) {
+async function generateWithGroq(systemPrompt, userPrompt, maxTokens = 4000) {
   const GROQ_API_KEY = process.env.GROQ_API_KEY;
   if (!GROQ_API_KEY) throw new Error('GROQ_API_KEY not set');
 
@@ -83,14 +83,15 @@ async function generateWithGroq(systemPrompt, userPrompt) {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Type': 'application/json'
       },
+      signal: AbortSignal.timeout(90000),
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: process.env.GROQ_MODEL || 'groq/compound-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
-        max_tokens: 8000
+        max_tokens: maxTokens
       })
     });
 
@@ -98,7 +99,13 @@ async function generateWithGroq(systemPrompt, userPrompt) {
       await new Promise(r => setTimeout(r, (attempt + 1) * 15000));
       continue;
     }
-    if (!res.ok) throw new Error(`Groq error: ${res.status}`);
+    if (!res.ok) {
+      let details = '';
+      try {
+        details = await res.text();
+      } catch {}
+      throw new Error(`Groq error: ${res.status}${details ? ` - ${details.slice(0, 300)}` : ''}`);
+    }
 
     const data = await res.json();
     return data.choices[0].message.content;
@@ -453,7 +460,7 @@ ${research.text.slice(0, 2500)}
 ${prompts.part1}
 
 각 섹션을 최대한 상세하게 작성. 프론트매터 없이 본문만.`
-    );
+    , 4000);
 
     await new Promise(r => setTimeout(r, 3000));
 
@@ -468,31 +475,28 @@ ${research.text.slice(0, 2500)}
 ${prompts.part2}
 
 각 섹션을 최대한 상세하게 작성. 프론트매터 없이 본문만.`
-    );
+    , 4000);
 
     const content = part1 + '\n\n' + part2;
     console.log(`[generate] Total content: ${content.length} chars`);
 
-    await new Promise(r => setTimeout(r, 3000));
-
-    // 3. Generate title
-    const title = await generateWithGroq(
-      'SEO 제목 생성기. 제목만 출력. 따옴표 없이.',
-      `다음 글의 SEO 최적화 제목 1개 (25-45자, 핵심 키워드 포함): ${content.slice(0, 500)}`
-    );
-    const cleanTitle = title.trim().replace(/^["']|["']$/g, '').replace(/^\d+\.\s*/, '');
-
-    await new Promise(r => setTimeout(r, 2000));
-
-    // 4. Generate excerpt
-    const excerpt = await generateWithGroq(
-      '요약 생성기. 2-3문장 요약만 출력.',
-      `2-3문장으로 핵심 요약: ${content.slice(0, 1000)}`
-    );
+    // 3. Build title/excerpt locally. This avoids extra LLM calls that can hang the cron.
+    const categoryTitleSuffix = {
+      policy: '핵심 내용과 영향 정리',
+      benefits: '신청 조건과 혜택 총정리',
+      lifestyle: '추천 코스와 방문 팁'
+    };
+    const cleanTitle = `${topicTitle} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+    const excerpt = content
+      .replace(/^---[\s\S]*?---/m, '')
+      .replace(/[#>*|`_~\-\[\]🎯📌💰]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 180);
 
     // 2. Create slug and filename
     const date = new Date().toISOString().split('T')[0];
-    const slug = cleanTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50);
+    const slug = (cleanTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || topicTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || `post-${Date.now()}`);
     const filename = `${date}-${slug}.md`;
     const imageFilename = `${slug}.png`;
 
