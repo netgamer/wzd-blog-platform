@@ -121,6 +121,7 @@ function validateNewsImage(buffer) {
 
 // --- Queue ---
 const queue = [];     // pending image jobs
+const textQueue = []; // pending ChatGPT text jobs
 const completed = []; // completed jobs
 const failed = [];    // failed jobs that must not be published
 
@@ -420,7 +421,7 @@ function getCurrentCategory() {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', queue: queue.length, completed: completed.length });
+  res.json({ status: 'ok', queue: textQueue.length + queue.length, completed: completed.length });
 });
 
 // Get current Google Trends
@@ -535,6 +536,54 @@ A: 답변내용.`
 
     const prompts = partPrompts[category] || partPrompts.benefits;
 
+    const categoryTitleSuffix = {
+      policy: '핵심 내용과 영향 정리',
+      benefits: '신청 조건과 혜택 총정리',
+      lifestyle: '추천 코스와 방문 팁'
+    };
+    const cleanTitle = `${topicTitle} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+    const textPrompt = `${systemPrompt}
+
+주제: ${topicTitle}
+제목: ${cleanTitle}
+
+참고 자료:
+${research.text.slice(0, 7000)}
+
+위 참고 자료만 근거로 완성된 블로그 본문을 작성하세요.
+전반부 구성:
+${prompts.part1}
+
+후반부 구성:
+${prompts.part2}
+
+필수 조건:
+- 프론트매터와 제목은 쓰지 말고 본문만 작성
+- ## 소제목 구조와 표 포함
+- 최소 2500자 이상
+- 참고 자료에 없는 주소, 가격, 운영시간, 날짜, 인물, 수치를 추측하거나 만들지 않기
+- 현재 시점과 맞지 않는 계절·날짜 표현 금지
+- 글 마지막에 "## 출처"를 만들고 제공된 출처 URL을 목록으로 표시`;
+
+    const textJob = {
+      id: `text-${Date.now()}`,
+      type: 'text',
+      blogId: blogConfig.id,
+      blogSlug: blogConfig.slug,
+      topicTitle,
+      title: cleanTitle,
+      category,
+      categoryName: cat.name,
+      researchSourceCount: research.count,
+      textPrompt,
+      minLength: 1800,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    textQueue.push(textJob);
+    console.log(`[text-queue] Text job queued: ${textJob.id}`);
+    return res.json({ success: true, mode: 'chrome-extension-text', job: textJob, post: { title: cleanTitle } });
+
     const part1 = await generateWithGroq(systemPrompt,
       `주제: ${topicTitle}
 
@@ -566,12 +615,12 @@ ${prompts.part2}
     console.log(`[generate] Total content: ${content.length} chars`);
 
     // 3. Build title/excerpt locally. This avoids extra LLM calls that can hang the cron.
-    const categoryTitleSuffix = {
+    const categoryTitleSuffixLegacy = {
       policy: '핵심 내용과 영향 정리',
       benefits: '신청 조건과 혜택 총정리',
       lifestyle: '추천 코스와 방문 팁'
     };
-    const cleanTitle = `${topicTitle} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+    const cleanTitleLegacy = `${topicTitle} ${categoryTitleSuffixLegacy[category] || '핵심 정리'}`.slice(0, 45);
     const excerpt = content
       .replace(/^---[\s\S]*?---/m, '')
       .replace(/[#>*|`_~\-\[\]🎯📌💰]/g, ' ')
@@ -581,13 +630,13 @@ ${prompts.part2}
 
     // 2. Create slug and filename
     const date = new Date().toISOString().split('T')[0];
-    const slug = (cleanTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || topicTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || `post-${Date.now()}`);
+    const slug = (cleanTitleLegacy.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || topicTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || `post-${Date.now()}`);
     const filename = `${date}-${slug}.md`;
     const imageFilename = `${slug}.png`;
 
     // 3. Prepare post content (DO NOT save yet - wait for image)
     const frontmatter = `---
-title: "${cleanTitle.replace(/"/g, '\\"')}"
+title: "${cleanTitleLegacy.replace(/"/g, '\\"')}"
 date: ${date}
 description: "${excerpt.trim().replace(/"/g, '\\"')}"
 categories: ["${cat.name}"]
@@ -600,7 +649,7 @@ image: "/images/${imageFilename}"
     console.log(`[generate] Post prepared (NOT saved yet, waiting for image): ${filename}`);
 
     // 4. Create image prompt
-    const imagePrompt = `한국 ${blogConfig.topic} 관련 "${cleanTitle}" 주제의 고품질 뉴스 썸네일 이미지를 만들어줘.
+    const imagePrompt = `한국 ${blogConfig.topic} 관련 "${cleanTitleLegacy}" 주제의 고품질 뉴스 썸네일 이미지를 만들어줘.
 단순한 색상 카드나 템플릿 배경은 금지. 기사 내용과 직접 관련된 사람, 장소, 사물, 문서, 현장 장면을 구체적으로 보여줘.
 블로그 대표 이미지로 바로 쓸 수 있게 선명하고 풍부한 디테일, 전문 언론 썸네일 느낌. 가로 16:9 비율, 1200x630 이상 고해상도.`;
 
@@ -613,14 +662,14 @@ image: "/images/${imageFilename}"
       postContent,
       imageFilename,
       imagePrompt,
-      title: cleanTitle,
+      title: cleanTitleLegacy,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
     queue.push(job);
 
     console.log(`[queue] Image job queued: ${job.id}`);
-    res.json({ success: true, job, post: { filename, title: cleanTitle } });
+    res.json({ success: true, job, post: { filename, title: cleanTitleLegacy } });
 
   } catch (err) {
     console.error('[generate] Error:', err.message);
@@ -628,19 +677,80 @@ image: "/images/${imageFilename}"
   }
 });
 
-// Chrome Extension compatibility: text is generated server-side now,
-// but the extension checks this endpoint before image jobs.
 app.get('/api/text-queue', (req, res) => {
-  res.json([]);
+  res.json(textQueue.filter(job => job.status === 'pending'));
 });
 
 app.post('/api/text-complete', (req, res) => {
-  res.json({ success: true, message: 'No pending text jobs; server-side text generation is active.' });
+  const { jobId, text } = req.body || {};
+  const idx = textQueue.findIndex(job => String(job.id) === String(jobId));
+  if (idx < 0) return res.status(404).json({ error: 'Text job not found' });
+
+  const textJob = textQueue[idx];
+  const content = String(text || '')
+    .replace(/^```(?:markdown)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  if (content.length < textJob.minLength || !content.includes('## ')) {
+    return res.status(400).json({ error: `본문 품질 미달 (${content.length}자)` });
+  }
+
+  const date = new Date().toISOString().split('T')[0];
+  const slug = textJob.title.toLowerCase()
+    .replace(/[^\w\s가-힣-]/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 50) || `post-${Date.now()}`;
+  const postFilename = `${date}-${slug}.md`;
+  const imageFilename = `${slug}.png`;
+  const excerpt = content
+    .replace(/[#>*|`_~\-\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+  const frontmatter = `---
+title: "${textJob.title.replace(/"/g, '\\"')}"
+date: ${date}
+description: "${excerpt.replace(/"/g, '\\"')}"
+categories: ["${textJob.categoryName}"]
+tags: ["${textJob.topicTitle.replace(/"/g, '\\"')}", "${textJob.categoryName}"]
+author: "오늘의 트렌드"
+image: "/images/${imageFilename}"
+---`;
+
+  const imageJob = {
+    id: Date.now().toString(),
+    blogId: textJob.blogId,
+    blogSlug: textJob.blogSlug,
+    postFilename,
+    postContent: `${frontmatter}\n\n${content}\n`,
+    imageFilename,
+    imagePrompt: `한국 뉴스 기사 "${textJob.title}" 주제의 고품질 뉴스 썸네일 이미지를 만들어줘.
+단순 색상 카드나 템플릿 배경은 금지. 기사와 직접 관련된 실제적인 사람, 장소, 사물 또는 현장 장면을 구체적으로 보여줘.
+전문 언론 썸네일 느낌, 가로 16:9 비율, 1200x630 이상 고해상도.`,
+    title: textJob.title,
+    category: textJob.category,
+    categoryName: textJob.categoryName,
+    researchSourceCount: textJob.researchSourceCount,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+
+  textQueue.splice(idx, 1);
+  queue.push(imageJob);
+  console.log(`[text-complete] Text accepted (${content.length} chars), image queued: ${imageJob.id}`);
+  res.json({ success: true, job: imageJob });
 });
 
 app.post('/api/text-error', (req, res) => {
-  console.warn('[text-error] Extension reported:', req.body?.jobId, req.body?.error);
-  res.json({ success: true });
+  const { jobId, error } = req.body || {};
+  const idx = textQueue.findIndex(job => String(job.id) === String(jobId));
+  const job = idx >= 0 ? textQueue.splice(idx, 1)[0] : { id: jobId, title: 'unknown' };
+  job.status = 'failed';
+  job.error = error || 'text-error';
+  job.failedAt = new Date().toISOString();
+  failed.push(job);
+  console.warn('[text-error] Extension reported:', jobId, job.error);
+  res.json({ success: true, job });
 });
 
 // Chrome Extension polls this for pending image jobs
@@ -727,7 +837,12 @@ app.post('/api/deploy', (req, res) => {
 
 // Get job status
 app.get('/api/jobs', (req, res) => {
-  res.json({ pending: queue.filter(j => j.status === 'pending'), completed, failed });
+  res.json({
+    pendingTexts: textQueue.filter(j => j.status === 'pending'),
+    pending: queue.filter(j => j.status === 'pending'),
+    completed,
+    failed
+  });
 });
 
 app.post('/api/image-error', (req, res) => {
@@ -780,20 +895,21 @@ function safePostPath(filename) {
 app.get('/api/dashboard', (req, res) => {
   const category = getCurrentCategory();
   const pending = queue.filter(j => j.status === 'pending');
-  const latest = pending[0] || failed[failed.length - 1] || completed[completed.length - 1] || null;
+  const pendingTexts = textQueue.filter(j => j.status === 'pending');
+  const latest = pendingTexts[0] || pending[0] || failed[failed.length - 1] || completed[completed.length - 1] || null;
   const latestStatus = latest?.status || '';
   res.json({
-    health: { status: 'ok', queue: queue.length, completed: completed.length },
+    health: { status: 'ok', queue: textQueue.length + queue.length, completed: completed.length },
     cron: { running: schedulerRunning },
-    counts: { pendingTexts: 0, pendingImages: pending.length },
+    counts: { pendingTexts: pendingTexts.length, pendingImages: pending.length },
     currentRun: latest ? {
       status: latestStatus === 'completed' ? 'completed' : latestStatus === 'failed' ? 'failed' : 'running',
-      phase: latestStatus === 'completed' ? 'published' : latestStatus === 'failed' ? 'image-error' : 'waiting-extension-image',
+      phase: latestStatus === 'completed' ? 'published' : latestStatus === 'failed' ? 'generation-error' : latest.type === 'text' ? 'waiting-extension-text' : 'waiting-extension-image',
       topicTitle: latest.title,
-      category,
-      categoryName: CATEGORIES[category]?.name || category,
+      category: latest.category || category,
+      categoryName: latest.categoryName || CATEGORIES[category]?.name || category,
       title: latest.title,
-      researchSourceCount: 0,
+      researchSourceCount: latest.researchSourceCount || 0,
       postFilename: latest.postFilename,
       startedAt: latest.createdAt,
       error: latest.error || ''
@@ -804,6 +920,7 @@ app.get('/api/dashboard', (req, res) => {
       categoryName: CATEGORIES[category]?.name || category
     },
     recentEvents: [
+      ...pendingTexts.map(j => ({ time: j.createdAt, type: 'text-queued', message: `본문 대기: ${j.title}` })),
       ...pending.map(j => ({ time: j.createdAt, type: 'image-queued', message: `이미지 대기: ${j.title}` })),
       ...failed.slice(-15).map(j => ({ time: j.failedAt || j.createdAt, type: 'failed', message: `발행 중지: ${j.title} (${j.error || 'image-error'})` })),
       ...completed.slice(-15).map(j => ({ time: j.completedAt || j.createdAt, type: 'published', message: `발행 완료: ${j.title}` }))
@@ -1016,7 +1133,7 @@ async function hourlyTask() {
       return;
     }
 
-    console.log(`[cron] Post generated: "${genData.post.title}"`);
+    console.log(`[cron] Text generation queued in Chrome Extension: "${genData.post.title}"`);
 
     // 2. Generate image via CDP
     const pendingJob = queue.find(j => j.id === genData.job.id);
