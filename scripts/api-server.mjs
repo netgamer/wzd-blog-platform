@@ -260,7 +260,9 @@ async function researchTopic(topic, category) {
 
   // Search for related articles
   const searchSuffix = CATEGORIES[category]?.searchSuffix || '2026 총정리';
-  const urls = await searchWeb(`${topic} ${searchSuffix}`);
+  const focusedUrls = await searchWeb(`${topic} ${searchSuffix}`);
+  const broadUrls = focusedUrls.length >= 3 ? [] : await searchWeb(topic);
+  const urls = [...new Set([...focusedUrls, ...broadUrls])].slice(0, 5);
 
   // Fetch content from top results
   const results = await Promise.all(
