@@ -46,6 +46,15 @@ async function notifyTelegram(message) {
 const PROJECT_ROOT_WSL = '/home/netgamer/.openclaw/workspace/code/wzd-blog-platform';
 const PORT = 3456;
 
+function getKoreaDateString(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+}
+
 // Load .env.local
 const envPath = join(PROJECT_ROOT, '.env.local');
 if (existsSync(envPath)) {
@@ -568,7 +577,7 @@ app.post('/api/generate', async (req, res) => {
 
     const systemPrompt = `${cat.systemPrompt}
 존댓말 사용. 전문용어는 괄호 설명. 표(테이블) 활용. 마크다운 ##부터 시작.
-현재 날짜는 ${new Date().toISOString().split('T')[0]}입니다.
+현재 날짜는 ${getKoreaDateString()}입니다.
 참고 자료에 명시된 사실만 사용하고, 확인되지 않은 주소·가격·운영시간·날짜·인물·수치를 만들지 마세요.
 확인할 수 없는 항목은 생략하거나 "방문 전 공식 안내 확인"으로 표시하세요.
 구체적인 수치/날짜/장소는 참고 자료에서 확인된 경우에만 포함. 최대한 길고 상세하게 작성.`;
@@ -716,7 +725,7 @@ ${prompts.part2}
       .slice(0, 180);
 
     // 2. Create slug and filename
-    const date = new Date().toISOString().split('T')[0];
+    const date = getKoreaDateString();
     const slug = (cleanTitleLegacy.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || topicTitle.toLowerCase().replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-').slice(0, 50) || `post-${Date.now()}`);
     const filename = `${date}-${slug}.md`;
     const imageFilename = `${slug}.png`;
@@ -782,7 +791,7 @@ app.post('/api/text-complete', (req, res) => {
     return res.status(400).json({ error: `본문 품질 미달 (${content.length}자)` });
   }
 
-  const date = new Date().toISOString().split('T')[0];
+  const date = getKoreaDateString();
   const slug = textJob.title.toLowerCase()
     .replace(/[^\w\s가-힣-]/g, '')
     .replace(/\s+/g, '-')
