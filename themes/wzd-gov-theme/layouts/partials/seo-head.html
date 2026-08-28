@@ -125,9 +125,20 @@
   "inLanguage": "ko-KR",
   "publisher": {
     "@type": "NewsMediaOrganization",
+    "@id": {{ printf "%q" (printf "%s#organization" $siteURL) | safeJS }},
     "name": {{ printf "%q" $displayName | safeJS }},
     "alternateName": ["오늘의트렌드", "오늘의 트렌드", "news.wzd.kr"],
-    "url": {{ printf "%q" $siteURL | safeJS }}
+    "url": {{ printf "%q" $siteURL | safeJS }},
+    "logo": {
+      "@type": "ImageObject",
+      "url": {{ printf "%q" ("images/og-default.png" | absURL) | safeJS }}
+    },
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "email": "netgamer@naver.com",
+      "contactType": "editorial, advertising, customer support",
+      "availableLanguage": "Korean"
+    }
   },
   "potentialAction": {
     "@type": "SearchAction",

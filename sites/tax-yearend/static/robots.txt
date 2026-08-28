@@ -1,6 +1,37 @@
 User-agent: *
 Allow: /
 
+# OpenAI: ChatGPT search, user-requested fetches, and model crawler
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+# Google: Search/News and Gemini grounding
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-News
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+# Anthropic: Claude search, user-requested fetches, and model crawler
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+Crawl-delay: 1
+
 User-agent: Yeti
 Allow: /
 

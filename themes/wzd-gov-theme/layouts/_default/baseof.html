@@ -29,6 +29,7 @@
   <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="alternate" type="application/rss+xml" title="{{ $displayTitle }}" href="{{ "index.xml" | absURL }}">
+  <link rel="alternate" type="text/plain" title="{{ $displayTitle }} AI content index" href="{{ "llms.txt" | absURL }}">
   <meta property="og:title" content="{{ .Title }}">
   <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <meta property="og:type" content="{{ if $isArticlePage }}article{{ else }}website{{ end }}">

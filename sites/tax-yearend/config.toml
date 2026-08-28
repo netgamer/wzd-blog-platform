@@ -56,8 +56,14 @@ canonifyURLs = true
     ordered = false
 
 [outputs]
-  home = ['HTML', 'RSS']
+  home = ['HTML', 'RSS', 'LLMSTXT']
   section = ['HTML', 'RSS', 'JSON']
+
+[outputFormats.LLMSTXT]
+  mediaType = 'text/plain'
+  baseName = 'llms'
+  isPlainText = true
+  notAlternative = true
 
 [sitemap]
   changefreq = 'daily'

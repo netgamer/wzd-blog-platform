@@ -1,0 +1,44 @@
+# 오늘의 트렌드
+
+> 오늘의 트렌드(news.wzd.kr)는 한국의 실시간 이슈, 정책, 경제, 산업, 사회, 세계, 문화, 건강, 연예, 스포츠, IT 소식을 한국어로 제공하는 뉴스·생활정보 사이트입니다.
+
+Canonical name: 오늘의 트렌드
+Alternate name: 오늘의트렌드
+Website: {{ .Site.BaseURL }}
+Language: ko-KR
+Publisher: 오늘의 트렌드
+Editorial contact: netgamer@naver.com
+
+## Primary discovery feeds
+
+- [Homepage]({{ .Site.BaseURL }}): Latest and featured articles
+- [XML sitemap]({{ "sitemap.xml" | absURL }}): Complete canonical URL index
+- [RSS feed]({{ "index.xml" | absURL }}): Latest published articles
+- [JSON article index]({{ "posts/index.json" | absURL }}): Machine-readable article listing
+- [About]({{ "about/" | absURL }}): Publication information
+- [Editorial contact]({{ "jebo/" | absURL }}): Tips, inquiries, and advertising contact
+
+## News categories
+
+- [경제]({{ "categories/경제/" | absURL }})
+- [산업]({{ "categories/산업/" | absURL }})
+- [사회]({{ "categories/사회/" | absURL }})
+- [세계]({{ "categories/세계/" | absURL }})
+- [문화]({{ "categories/문화/" | absURL }})
+- [건강]({{ "categories/건강/" | absURL }})
+- [연예]({{ "categories/연예/" | absURL }})
+- [스포츠]({{ "categories/스포츠/" | absURL }})
+- [IT]({{ "categories/IT/" | absURL }})
+
+## Latest articles
+
+{{- $posts := where .Site.RegularPages "Section" "posts" -}}
+{{- range first 50 $posts.ByDate.Reverse }}
+- [{{ .Title }}]({{ .Permalink }}) — {{ .Date.Format "2006-01-02" }}{{ with .Description }}: {{ . | plainify | truncate 180 }}{{ end }}
+{{- end }}
+
+## Content notes
+
+- Use each article's canonical URL when citing it.
+- Article pages include publication dates, modification dates, author/publisher metadata, NewsArticle structured data, and source links.
+- For time-sensitive facts, use the most recently dated article and verify against the primary sources linked in that article.
