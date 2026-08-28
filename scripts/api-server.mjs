@@ -880,6 +880,17 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
       return res.status(400).json({ error: imageCheck.reason });
     }
 
+    const aspectRatio = imageCheck.width / imageCheck.height;
+    const roleAspectInvalid = job.imageRole === 'main'
+      ? aspectRatio < 1.45
+      : ['mid', 'comic'].includes(job.imageRole) && (aspectRatio < 0.85 || aspectRatio > 1.18);
+    if (roleAspectInvalid) {
+      const expected = job.imageRole === 'main' ? '16:9 landscape' : '1:1 square';
+      const reason = `${job.imageRole} image must be ${expected}; received ${imageCheck.width}x${imageCheck.height}`;
+      console.warn(`[upload] Role mismatch, keeping job pending: ${reason}`);
+      return res.status(422).json({ error: reason, retry: true });
+    }
+
     // 1. Save image
     const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
     mkdirSync(imagesDir, { recursive: true });
@@ -906,7 +917,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
       const postsDir = join(PROJECT_ROOT, 'sites', group.blogSlug, 'content', 'posts');
       mkdirSync(postsDir, { recursive: true });
       writeFileSync(join(postsDir, group.postFilename), group.postContent, 'utf-8');
-      console.log(`[upload] All three images ready. Post saved: ${group.postFilename}`);
+      console.log(`[upload] All ${expectedCount} expected image(s) ready. Post saved: ${group.postFilename}`);
 
       const completedGroup = {
         id: group.groupId,
@@ -1079,6 +1090,77 @@ app.post('/api/posts/repair-headline-images', (req, res) => {
     res.json({ success: true, groupId, queued: jobs.length });
   } catch (err) {
     console.error('[repair-headline-images] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/posts/repair-mid-image', (req, res) => {
+  try {
+    const { filename } = req.body || {};
+    if (!filename) return res.status(400).json({ error: 'filename required' });
+    const postPath = safePostPath(filename);
+    if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
+
+    const postContent = readFileSync(postPath, 'utf-8');
+    const meta = parseFrontmatter(postContent);
+    const title = meta.title || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+    const slug = (meta.image || '').match(/\/images\/(.+)\.png$/)?.[1]
+      || filename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+    const articleText = postContent
+      .replace(/^---[\s\S]*?---/, '')
+      .replace(/<figure[\s\S]*?<\/figure>/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/[#>*|`_~\-\[\]]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1800);
+    const groupId = `mid-repair-${Date.now()}`;
+    const job = {
+      groupId,
+      blogId: 'policy-guide',
+      blogSlug: 'tax-yearend',
+      postFilename: filename,
+      title,
+      category: meta.categories || 'lifestyle',
+      categoryName: meta.categories || '생활·명소',
+      researchSourceCount: 0,
+      status: 'pending',
+      id: `${Date.now()}-mid`,
+      imageRole: 'mid',
+      imageFilename: `${slug}-mid.png`,
+      imagePrompt: `이미지를 생성해줘. 웹 검색하지 말고 직접 새 이미지를 그려줘.
+
+기사 제목: ${title}
+기사 핵심 내용: ${articleText}
+
+반드시 정사각형 한국어 인포그래픽으로 제작해줘.
+- 유튜브 썸네일, 실사 인물 중심 사진, 거대한 한 줄 헤드라인 형식은 절대 금지
+- 핵심 정보를 신청 대상, 지원 금액, 지원 기간, 신청 방법, 주의사항 등 4~5개 정보 구역으로 분리
+- 각 구역에 짧고 정확한 한국어 키워드, 아이콘, 체크리스트, 숫자를 사용
+- 기사에 없는 수치나 조건은 만들지 말 것
+- 밝고 전문적인 공공정책 안내 디자인
+- 정사각형 1:1, 1200x1200 이상 고해상도`
+    };
+
+    imageGroups.set(groupId, {
+      groupId,
+      blogId: job.blogId,
+      blogSlug: job.blogSlug,
+      postFilename: filename,
+      postContent,
+      title,
+      category: job.category,
+      categoryName: job.categoryName,
+      researchSourceCount: 0,
+      expectedCount: 1,
+      uploadedRoles: new Set(),
+      createdAt: new Date().toISOString()
+    });
+    queue.push({ ...job, createdAt: new Date().toISOString() });
+    console.log(`[queue] Mid infographic repair queued: ${groupId}`);
+    res.json({ success: true, groupId, queued: 1, jobId: job.id });
+  } catch (err) {
+    console.error('[repair-mid-image] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
