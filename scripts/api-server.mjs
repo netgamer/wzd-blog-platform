@@ -1150,7 +1150,9 @@ app.get('/api/dashboard', (req, res) => {
   const category = getCurrentCategory();
   const pending = queue.filter(j => j.status === 'pending');
   const pendingTexts = textQueue.filter(j => j.status === 'pending');
-  const latest = pendingTexts[0] || pending[0] || failed[failed.length - 1] || completed[completed.length - 1] || null;
+  const latestFinished = [...failed, ...completed]
+    .sort((a, b) => new Date(b.completedAt || b.createdAt) - new Date(a.completedAt || a.createdAt))[0];
+  const latest = pendingTexts[0] || pending[0] || latestFinished || null;
   const latestStatus = latest?.status || '';
   res.json({
     health: { status: 'ok', queue: textQueue.length + queue.length, completed: completed.length },
