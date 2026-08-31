@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { validateArticleContent } from './content-quality.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = '\\\\wsl$\\Ubuntu\\home\\netgamer\\.openclaw\\workspace\\code\\wzd-blog-platform';
@@ -430,7 +431,8 @@ const CATEGORIES = {
 - 구체적인 장소명, 주소, 운영시간, 입장료 포함
 - "이런 분에게 추천" 섹션 (데이트, 가족, 혼자 등)
 - 사진 포인트, 주차 정보, 맛집 팁 포함
-- 계절감 있는 생동감 있는 묘사`
+- 계절감 있는 생동감 있는 묘사
+- 검증 가능한 고유 장소명 3곳과 주변 맛집·카페 2곳을 확보하지 못하면 글을 만들지 말고 CONTENT_QUALITY_BLOCKED로 시작하는 한 줄만 반환`
   }
 };
 
@@ -615,10 +617,10 @@ A: 답변내용.`
       },
       lifestyle: {
         part1: `1. 소개 및 왜 지금 가야 하는지 (계절감 있게, 3문단)
-2. 추천 명소 TOP 5~7곳 - 각 명소별 (이름, 위치, 특징, 입장료, 운영시간)
+2. 참고 자료에서 검증된 추천 명소 3~7곳 - 각 명소별 (고유 이름, 위치, 특징, 입장료, 운영시간)
 3. 명소별 추천 대상 표 (데이트/가족/혼자/친구)`,
         part2: `1. 방문 꿀팁 (주차, 혼잡시간, 준비물 등 5가지 이상)
-2. 주변 맛집/카페 추천 3곳
+2. 참고 자료에서 상호와 위치가 검증된 주변 맛집/카페 2곳 이상
 3. 추천 코스 (반나절/하루 코스)
 4. 주의사항 (날씨, 예약 등)
 5. 자주 묻는 질문(FAQ) 5개
@@ -658,6 +660,8 @@ ${prompts.part2}
 - ## 소제목 구조와 표 포함
 - 최소 2500자 이상
 - 참고 자료에 없는 주소, 가격, 운영시간, 날짜, 인물, 수치를 추측하거나 만들지 않기
+- 생활·명소 글은 고유 명칭이 확인된 추천지 3곳과 주변 맛집·카페 2곳을 확보하지 못하면 표를 임시 항목으로 채우지 말고 CONTENT_QUALITY_BLOCKED: 자료 부족 한 줄만 반환
+- "추천 명소 2", "맛집 1", "확인 불가" 같은 자리표시자를 절대 쓰지 않기
 - 현재 시점과 맞지 않는 계절·날짜 표현 금지
 - 글 마지막에 "## 출처"를 만들고 제공된 출처 URL을 목록으로 표시`;
 
@@ -787,6 +791,21 @@ app.post('/api/text-complete', (req, res) => {
     .replace(/^```(?:markdown)?\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
+  const contentQuality = validateArticleContent({
+    category: textJob.category,
+    title: textJob.title,
+    content
+  });
+  if (!contentQuality.ok) {
+    textQueue.splice(idx, 1);
+    textJob.status = 'failed';
+    textJob.error = `콘텐츠 품질 미달: ${contentQuality.reason}`;
+    textJob.failedAt = new Date().toISOString();
+    failed.push(textJob);
+    console.warn(`[text-complete] Publication blocked for ${textJob.title}: ${contentQuality.reason}`);
+    notifyTelegram(`⚠️ 추천 글 품질 미달로 발행 중단\n\n제목: ${textJob.title}\n사유: ${contentQuality.reason}`);
+    return res.status(422).json({ error: textJob.error, blocked: true });
+  }
   if (content.length < textJob.minLength || !content.includes('## ')) {
     return res.status(400).json({ error: `본문 품질 미달 (${content.length}자)` });
   }
