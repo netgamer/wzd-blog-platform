@@ -85,6 +85,10 @@
       </a>
       <div class="masthead-tools">
         <time datetime="{{ now.Format "2006-01-02" }}">{{ now.Format "2006.01.02" }}</time>
+        <div class="today-stats" data-visitor-stats aria-label="오늘 사이트 이용 현황" hidden>
+          <span>오늘 조회 <strong data-stat-views>0</strong></span>
+          <span>접속자 <strong data-stat-visitors>0</strong></span>
+        </div>
         <a href="{{ "" | relURL }}#search" class="header-icon" aria-label="뉴스 검색">⌕</a>
       </div>
     </div>
@@ -172,5 +176,6 @@
     </div>
   </footer>
   <script src="{{ "js/search-filter.js" | relURL }}" defer></script>
+  {{ partial "visitor-stats.html" . }}
 </body>
 </html>

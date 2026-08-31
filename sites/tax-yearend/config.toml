@@ -17,6 +17,10 @@ canonifyURLs = true
   naverVerification = ''
   keywords = ['오늘의트렌드', '오늘의 트렌드', 'news.wzd.kr', '실시간 뉴스', '트렌드 뉴스', '경제 뉴스', '건강 정보', 'IT 트렌드', '연예 뉴스', '스포츠 뉴스', '정책 정보', '생활 정보']
 
+  [params.visitorStats]
+    enabled = true
+    endpoint = '/api/stats'
+
   [params.coupangPartners]
     enabled = true
     insertAfterParagraph = 3

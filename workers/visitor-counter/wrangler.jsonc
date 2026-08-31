@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wzd-visitor-counter",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-31",
+  "routes": [
+    {
+      "pattern": "news.wzd.kr/api/stats*",
+      "zone_name": "wzd.kr"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "STATS", "class_name": "DailyStats" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DailyStats"]
+    }
+  ]
+}

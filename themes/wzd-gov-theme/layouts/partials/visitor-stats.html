@@ -1,0 +1,40 @@
+{{ with .Site.Params.visitorStats }}
+{{ if .enabled }}
+<script>
+(() => {
+  const root = document.querySelector('[data-visitor-stats]');
+  if (!root || navigator.webdriver || document.visibilityState === 'prerender') return;
+
+  const endpoint = {{ .endpoint | default "/api/stats" | jsonify | safeJS }};
+  const numberFormat = new Intl.NumberFormat('ko-KR');
+
+  fetch(endpoint, {
+    method: 'POST',
+    credentials: 'same-origin',
+    keepalive: true,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ path: location.pathname })
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error('visitor stats unavailable');
+      return response.json();
+    })
+    .then((stats) => {
+      const views = Number(stats.views);
+      const visitors = Number(stats.visitors);
+      if (!Number.isFinite(views) || !Number.isFinite(visitors)) return;
+
+      root.querySelector('[data-stat-views]').textContent = numberFormat.format(views);
+      root.querySelector('[data-stat-visitors]').textContent = numberFormat.format(visitors);
+      root.hidden = false;
+    })
+    .catch(() => {
+      root.hidden = true;
+    });
+})();
+</script>
+{{ end }}
+{{ end }}
