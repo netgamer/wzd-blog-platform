@@ -6,11 +6,6 @@
   {{ if not $badTitle }}{{ $validPosts = $validPosts | append . }}{{ end }}
 {{ end }}
 
-<section class="brand-intro" aria-label="오늘의트렌드 소개">
-  <h1>오늘의트렌드</h1>
-  <p>오늘의 트렌드는 실시간 이슈, 정책, 생활 정보를 빠르게 정리하는 뉴스 사이트입니다.</p>
-</section>
-
 <section class="home-newsdesk" aria-label="주요 뉴스">
   {{ range first 1 $validPosts }}
   <article class="lead-story">

@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {{ $displayTitle := .Site.Params.displayTitle | default .Site.Title }}
-  {{ $compactTitle := .Site.Params.compactTitle | default .Site.Title }}
   {{ $titleSuffix := .Site.Params.titleSuffix | default .Site.Params.description }}
-  <title>{{ if .IsHome }}{{ $displayTitle }} ({{ $compactTitle }}) | {{ $titleSuffix }}{{ else }}{{ .Title }} | {{ $displayTitle }}{{ end }}</title>
+  {{ $pageTitle := cond .IsHome $displayTitle .Title }}
+  <title>{{ if .IsHome }}{{ $displayTitle }} | {{ $titleSuffix }}{{ else }}{{ .Title }} | {{ $displayTitle }}{{ end }}</title>
   <meta name="application-name" content="{{ $displayTitle }}">
   <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
-  {{ $isArticlePage := and .IsPage (ne .Params.page_type "contact") }}
+  {{ $isArticlePage := and .IsPage (eq .Section "posts") }}
   {{ if $isArticlePage }}<meta name="author" content="{{ .Params.author | default .Site.Params.author }}">{{ end }}
   <meta name="keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ delimit .Site.Params.keywords ", " }}{{ end }}">
   {{ $isTagPage := hasPrefix .RelPermalink "/tags/" }}
@@ -30,7 +30,8 @@
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="alternate" type="application/rss+xml" title="{{ $displayTitle }}" href="{{ "index.xml" | absURL }}">
   <link rel="alternate" type="text/plain" title="{{ $displayTitle }} AI content index" href="{{ "llms.txt" | absURL }}">
-  <meta property="og:title" content="{{ .Title }}">
+  <link rel="sitemap" type="application/xml" title="최신 뉴스 사이트맵" href="{{ "news-sitemap.xml" | absURL }}">
+  <meta property="og:title" content="{{ $pageTitle }}">
   <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <meta property="og:type" content="{{ if $isArticlePage }}article{{ else }}website{{ end }}">
   <meta property="og:url" content="{{ .Permalink }}">
@@ -50,7 +51,7 @@
   {{ end }}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:site" content="@news_wzd">
-  <meta name="twitter:title" content="{{ .Title }}">
+  <meta name="twitter:title" content="{{ $pageTitle }}">
   <meta name="twitter:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   {{ if .Params.image }}
   <meta name="twitter:image" content="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}">
@@ -172,7 +173,7 @@
         <a href="{{ "jebo/" | relURL }}">제보</a>
       </div>
       <p>&copy; {{ now.Year }} {{ .Site.Title }}. 이 글은 참고용이며, 정확한 정보는 관련 기관에 확인하세요.</p>
-      <p><a href="{{ "privacy/" | relURL }}">개인정보처리방침</a> | <a href="{{ "about/" | relURL }}">소개</a> | <a href="{{ "jebo/" | relURL }}">제보 · 문의 · 광고</a> | <a href="{{ "index.xml" | relURL }}">RSS</a> | <a href="{{ "sitemap.xml" | relURL }}">사이트맵</a></p>
+      <p><a href="{{ "privacy/" | relURL }}">개인정보처리방침</a> | <a href="{{ "about/" | relURL }}">소개</a> | <a href="{{ "editorial-policy/" | relURL }}">편집 원칙</a> | <a href="{{ "jebo/" | relURL }}">제보 · 문의 · 광고</a> | <a href="{{ "index.xml" | relURL }}">RSS</a> | <a href="{{ "sitemap.xml" | relURL }}">사이트맵</a></p>
     </div>
   </footer>
   <script src="{{ "js/search-filter.js" | relURL }}" defer></script>

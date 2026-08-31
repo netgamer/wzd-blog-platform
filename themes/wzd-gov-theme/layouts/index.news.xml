@@ -1,0 +1,32 @@
+{{ printf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" | safeHTML }}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  {{- $cutoff := now.AddDate 0 0 -2 -}}
+  {{- $posts := where .Site.RegularPages "Section" "posts" -}}
+  {{- range $posts.ByDate.Reverse -}}
+    {{- if and (ge .Date.Unix $cutoff.Unix) (not .Params.noindex) }}
+    {{- $post := . -}}
+  <url>
+    <loc>{{ .Permalink }}</loc>
+    <news:news>
+      <news:publication>
+        <news:name>{{ $.Site.Params.displayTitle | default $.Site.Title }}</news:name>
+        <news:language>ko</news:language>
+      </news:publication>
+      <news:publication_date>{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}</news:publication_date>
+      <news:title>{{ .Title }}</news:title>
+      {{- with .Params.tags }}
+      <news:keywords>{{ delimit . ", " }}</news:keywords>
+      {{- end }}
+    </news:news>
+    {{- with .Params.image }}
+    <image:image>
+      <image:loc>{{ printf "%s%s" $post.Site.BaseURL (strings.TrimPrefix "/" .) }}</image:loc>
+      <image:title>{{ $post.Title }}</image:title>
+    </image:image>
+    {{- end }}
+  </url>
+    {{- end -}}
+  {{- end }}
+</urlset>

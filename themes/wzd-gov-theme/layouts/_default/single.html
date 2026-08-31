@@ -6,7 +6,10 @@
       <time datetime="{{ .Date.Format "2006-01-02" }}" itemprop="datePublished">
         {{ .Date.Format "2006년 1월 2일" }}
       </time>
-      {{ with .Params.author }}<span class="post-author" itemprop="author">{{ . }}</span>{{ end }}
+      <a class="post-author" href="{{ "about/" | relURL }}" itemprop="author">{{ .Params.author | default "오늘의 트렌드 편집팀" }}</a>
+      {{ if ne (.Lastmod.Format "2006-01-02") (.Date.Format "2006-01-02") }}
+      <time datetime="{{ .Lastmod.Format "2006-01-02" }}" itemprop="dateModified">수정 {{ .Lastmod.Format "2006년 1월 2일" }}</time>
+      {{ end }}
       {{ if .Params.categories }}
       <span class="post-categories">
         {{ range .Params.categories }}<a href="{{ print "categories/" (. | urlize) "/" | relURL }}">{{ . }}</a> {{ end }}
@@ -75,6 +78,7 @@
 
     <div class="post-disclaimer">
       <p>본 글은 정보 제공 목적으로 작성되었으며, 정확한 내용은 해당 기관 공식 홈페이지를 통해 확인하시기 바랍니다.</p>
+      <p><a href="{{ "editorial-policy/" | relURL }}">편집 원칙 및 정정 안내</a></p>
     </div>
   </footer>
 

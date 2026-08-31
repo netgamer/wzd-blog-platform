@@ -1,6 +1,6 @@
 baseURL = 'https://news.wzd.kr/'
 languageCode = 'ko'
-title = '오늘의트렌드'
+title = '오늘의 트렌드'
 theme = 'wzd-gov-theme'
 [pagination]
   pagerSize = 10
@@ -11,7 +11,7 @@ canonifyURLs = true
   displayTitle = '오늘의 트렌드'
   titleSuffix = '실시간 이슈·정책·생활 뉴스'
   description = '오늘의트렌드(오늘의 트렌드)는 실시간 트렌드 뉴스, 경제, 건강, IT, 연예, 스포츠 등 오늘의 핫이슈를 빠르고 깊이 있게 전달합니다.'
-  author = '오늘의 트렌드'
+  author = '오늘의 트렌드 편집팀'
   gaId = 'G-X1VVEB9LME'
   adsenseId = ''
   naverVerification = ''
@@ -60,12 +60,18 @@ canonifyURLs = true
     ordered = false
 
 [outputs]
-  home = ['HTML', 'RSS', 'LLMSTXT']
+  home = ['HTML', 'RSS', 'LLMSTXT', 'NEWS']
   section = ['HTML', 'RSS', 'JSON']
 
 [outputFormats.LLMSTXT]
   mediaType = 'text/plain'
   baseName = 'llms'
+  isPlainText = true
+  notAlternative = true
+
+[outputFormats.NEWS]
+  mediaType = 'application/xml'
+  baseName = 'news-sitemap'
   isPlainText = true
   notAlternative = true
 

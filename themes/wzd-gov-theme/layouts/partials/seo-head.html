@@ -2,8 +2,9 @@
 {{- $displayName := .Site.Params.displayTitle | default .Site.Title -}}
 {{- $siteURL := .Site.BaseURL -}}
 {{- $siteDescription := .Site.Params.description -}}
+{{- $isArticle := and .IsPage (eq .Section "posts") -}}
 
-{{- if and .IsPage (ne .Params.page_type "contact") -}}
+{{- if $isArticle -}}
 {{- $description := .Description | default (.Summary | plainify | truncate 160) -}}
 {{- $authorName := .Params.author | default .Site.Params.author | default $siteName -}}
 <script type="application/ld+json">
@@ -25,17 +26,21 @@
   "keywords": [{{ range $i, $tag := . }}{{ if $i }},{{ end }}{{ printf "%q" $tag | safeJS }}{{ end }}],
   {{- end }}
   "author": {
-    "@type": "Person",
-    "name": {{ printf "%q" $authorName | safeJS }}
+    "@type": "Organization",
+    "name": {{ printf "%q" $authorName | safeJS }},
+    "url": {{ printf "%q" ("about/" | absURL) | safeJS }}
   },
   "publisher": {
-    "@type": "Organization",
+    "@type": "NewsMediaOrganization",
+    "@id": {{ printf "%q" (printf "%s#organization" $siteURL) | safeJS }},
     "name": {{ printf "%q" $displayName | safeJS }},
     "alternateName": ["오늘의트렌드", "오늘의 트렌드", "news.wzd.kr"],
     "url": {{ printf "%q" $siteURL | safeJS }},
     "logo": {
       "@type": "ImageObject",
-      "url": {{ printf "%q" ("images/og-default.png" | absURL) | safeJS }}
+      "url": {{ printf "%q" ("images/brand-mark.svg" | absURL) | safeJS }},
+      "width": 512,
+      "height": 512
     }
   },
   "mainEntityOfPage": {
@@ -53,7 +58,7 @@
     {
       "@type": "ListItem",
       "position": 1,
-      "name": "Home",
+      "name": "오늘의 트렌드",
       "item": {{ printf "%q" $siteURL | safeJS }}
     }{{ with .Params.categories }},
     {
@@ -82,7 +87,7 @@
   "inLanguage": "ko-KR",
   "isPartOf": {
     "@type": "WebSite",
-    "name": {{ printf "%q" $siteName | safeJS }},
+    "name": {{ printf "%q" $displayName | safeJS }},
     "url": {{ printf "%q" $siteURL | safeJS }}
   },
   "contactPoint": {
@@ -119,7 +124,8 @@
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "name": {{ printf "%q" $siteName | safeJS }},
+  "name": {{ printf "%q" $displayName | safeJS }},
+  "alternateName": "오늘의트렌드",
   "url": {{ printf "%q" $siteURL | safeJS }},
   "description": {{ printf "%q" $siteDescription | safeJS }},
   "inLanguage": "ko-KR",
@@ -131,7 +137,9 @@
     "url": {{ printf "%q" $siteURL | safeJS }},
     "logo": {
       "@type": "ImageObject",
-      "url": {{ printf "%q" ("images/og-default.png" | absURL) | safeJS }}
+      "url": {{ printf "%q" ("images/brand-mark.svg" | absURL) | safeJS }},
+      "width": 512,
+      "height": 512
     },
     "contactPoint": {
       "@type": "ContactPoint",
@@ -176,11 +184,11 @@
   "@type": "CollectionPage",
   "name": {{ printf "%q" .Title | safeJS }},
   "url": {{ printf "%q" .Permalink | safeJS }},
-  "description": {{ printf "%q" (printf "%s related news and trend analysis" .Title) | safeJS }},
+  "description": {{ printf "%q" (.Description | default (printf "%s 관련 최신 뉴스와 핵심 내용을 확인하세요." .Title)) | safeJS }},
   "inLanguage": "ko-KR",
   "isPartOf": {
     "@type": "WebSite",
-    "name": {{ printf "%q" $siteName | safeJS }},
+    "name": {{ printf "%q" $displayName | safeJS }},
     "url": {{ printf "%q" $siteURL | safeJS }}
   }
 }
