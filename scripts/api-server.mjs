@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { validateArticleContent } from './content-quality.mjs';
+import { stripAssistantPreamble, validateArticleContent } from './content-quality.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = '\\\\wsl$\\Ubuntu\\home\\netgamer\\.openclaw\\workspace\\code\\wzd-blog-platform';
@@ -59,6 +59,25 @@ function getKoreaDateString(date = new Date()) {
 function getPublishedPostUrl(postFilename) {
   const slug = String(postFilename || '').replace(/\.md$/i, '');
   return `https://news.wzd.kr/posts/${encodeURIComponent(slug)}/`;
+}
+
+function findExistingPostByTitle(title) {
+  const postsDir = join(PROJECT_ROOT, 'sites', 'tax-yearend', 'content', 'posts');
+  if (!existsSync(postsDir)) return null;
+  for (const filename of readdirSync(postsDir).filter(name => name.endsWith('.md'))) {
+    const text = readFileSync(join(postsDir, filename), 'utf-8');
+    if (/^draft:\s*true\s*$/mi.test(text)) continue;
+    const match = text.match(/^title:\s*["']?(.*?)["']?\s*$/mi);
+    if (match?.[1]?.trim() === title.trim()) return filename;
+  }
+  return null;
+}
+
+function generatedDeployPaths(blogSlug, postFilename, imageFilenames) {
+  return [
+    `sites/${blogSlug}/content/posts/${postFilename}`,
+    ...imageFilenames.map(name => `sites/${blogSlug}/static/images/${name}`)
+  ];
 }
 
 // Load .env.local
@@ -226,7 +245,7 @@ function queueThreeImageGroup({ blogId, blogSlug, postFilename, postContent, tit
 - 밝고 컬러풀한 톤, 정사각형 1:1, 1200x1200 이상 고해상도`
     }
   ];
-  imageGroups.set(groupId, { groupId, blogId, blogSlug, postFilename, postContent, title, category, categoryName, researchSourceCount, expectedCount: 3, uploadedRoles: new Set(), createdAt: new Date().toISOString() });
+  imageGroups.set(groupId, { groupId, blogId, blogSlug, postFilename, postContent, title, category, categoryName, researchSourceCount, expectedCount: 3, imageFilenames: jobs.map(job => job.imageFilename), uploadedRoles: new Set(), createdAt: new Date().toISOString() });
   queue.push(...jobs.map((job, index) => ({ ...job, createdAt: new Date(Date.now() + index).toISOString() })));
   console.log(`[queue] Three-image group queued: ${groupId} (main, mid, comic)`);
   return { groupId, jobs };
@@ -513,11 +532,40 @@ function findTopicForCategory(trends, category) {
   return { topic: kw, source: 'keyword-fallback', category, matchedKeyword: kw };
 }
 
-// Get current category based on hour rotation
-function getCurrentCategory() {
-  const hour = new Date().getHours();
-  const categories = ['policy', 'benefits', 'lifestyle'];
-  return categories[hour % 3];
+const PUBLISH_HOURS_KST = [0, 6, 12, 18];
+const PUBLISH_CATEGORIES = ['policy', 'benefits', 'lifestyle', 'policy'];
+
+function getKstDateParts(date = new Date()) {
+  const shifted = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth(),
+    day: shifted.getUTCDate(),
+    hour: shifted.getUTCHours()
+  };
+}
+
+function getCurrentCategory(date = new Date()) {
+  const { hour } = getKstDateParts(date);
+  let slot = PUBLISH_HOURS_KST.findLastIndex(publishHour => publishHour <= hour);
+  if (slot < 0) slot = PUBLISH_HOURS_KST.length - 1;
+  return PUBLISH_CATEGORIES[slot];
+}
+
+function getNextPublishRuns(date = new Date(), count = 4) {
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const nowMs = date.getTime();
+  const { year, month, day } = getKstDateParts(date);
+  const runs = [];
+  for (let dayOffset = 0; runs.length < count && dayOffset < 3; dayOffset += 1) {
+    for (let slot = 0; slot < PUBLISH_HOURS_KST.length && runs.length < count; slot += 1) {
+      const hour = PUBLISH_HOURS_KST[slot];
+      const atMs = Date.UTC(year, month, day + dayOffset, hour) - KST_OFFSET_MS;
+      if (atMs <= nowMs + 1000) continue;
+      runs.push({ at: new Date(atMs), hour, category: PUBLISH_CATEGORIES[slot] });
+    }
+  }
+  return runs;
 }
 
 // --- API Routes ---
@@ -645,6 +693,10 @@ A: 답변내용.`
       lifestyle: '추천 코스와 방문 팁'
     };
     const cleanTitle = `${topicTitle} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+    const existingPost = findExistingPostByTitle(cleanTitle);
+    if (existingPost) {
+      throw new Error(`동일 제목 글이 이미 발행되어 있습니다: ${existingPost}`);
+    }
     const textPrompt = `${systemPrompt}
 
 주제: ${topicTitle}
@@ -792,10 +844,9 @@ app.post('/api/text-complete', (req, res) => {
   if (idx < 0) return res.status(404).json({ error: 'Text job not found' });
 
   const textJob = textQueue[idx];
-  const content = String(text || '')
+  const content = stripAssistantPreamble(String(text || '')
     .replace(/^```(?:markdown)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
+    .replace(/\s*```$/i, ''));
   const contentQuality = validateArticleContent({
     category: textJob.category,
     title: textJob.title,
@@ -961,7 +1012,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
       imageGroups.delete(group.groupId);
 
       console.log('[upload] Deploying post + all three images together...');
-      deployBlog(group.blogSlug);
+      deployBlog(group.blogSlug, generatedDeployPaths(group.blogSlug, group.postFilename, group.imageFilenames));
       notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: ${expectedCount}장 검수 완료\n기사 보기: ${getPublishedPostUrl(group.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
       return res.json({ success: true, message: 'Post + all three images saved and deployed' });
     }
@@ -981,7 +1032,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
     // 4. Deploy (post + image together)
     console.log(`[upload] Deploying post + image together...`);
-    deployBlog(job.blogSlug);
+    deployBlog(job.blogSlug, generatedDeployPaths(job.blogSlug, job.postFilename, [job.imageFilename]));
 
     // 5. Telegram notification
     notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n카테고리: ${job.blogSlug}\n기사 보기: ${getPublishedPostUrl(job.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
@@ -1329,13 +1380,16 @@ app.post('/api/admin/deploy', requireAdmin, (req, res) => {
 });
 
 // --- Deploy ---
-function deployBlog(blogSlug) {
+function deployBlog(blogSlug, changedPaths = null) {
   console.log(`[deploy] Building and pushing ${blogSlug}...`);
   try {
     const commitMessage = `post: auto-generated for ${blogSlug}`;
+    const pathArgs = changedPaths?.length
+      ? ` -- ${changedPaths.map(path => `"${path.replace(/"/g, '\\"')}"`).join(' ')}`
+      : ' -A';
     const command = process.platform === 'win32'
-      ? `git -C "${PROJECT_ROOT}" add -A && git -C "${PROJECT_ROOT}" commit -m "${commitMessage}" && git -C "${PROJECT_ROOT}" push origin main`
-      : `git add -A && git commit -m "${commitMessage}" && git push origin main`;
+      ? `git -C "${PROJECT_ROOT}" add${pathArgs} && git -C "${PROJECT_ROOT}" commit -m "${commitMessage}" && git -C "${PROJECT_ROOT}" push origin main`
+      : `git add${pathArgs} && git commit -m "${commitMessage}" && git push origin main`;
     execSync(command, { cwd: PROJECT_ROOT, stdio: 'pipe', timeout: 120000 });
     console.log(`[deploy] Pushed to GitHub. GitHub Actions will build and deploy.`);
   } catch (err) {
@@ -1440,7 +1494,7 @@ async function generateImageViaCDP(job) {
     removeFromQueue(job);
 
     // Deploy
-    deployBlog(job.blogSlug);
+    deployBlog(job.blogSlug, generatedDeployPaths(job.blogSlug, job.postFilename, [job.imageFilename]));
 
     // Notify
     notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n이미지: ✅ ChatGPT 생성\n기사 보기: ${getPublishedPostUrl(job.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
@@ -1454,18 +1508,15 @@ async function generateImageViaCDP(job) {
   }
 }
 
-// --- Hourly Scheduler ---
+// --- Four-times-daily Scheduler ---
 
 let schedulerRunning = false;
 let schedulerTimeout = null;
-let schedulerInterval = null;
 
 function stopSchedulerNow() {
   schedulerRunning = false;
   if (schedulerTimeout) clearTimeout(schedulerTimeout);
-  if (schedulerInterval) clearInterval(schedulerInterval);
   schedulerTimeout = null;
-  schedulerInterval = null;
 }
 
 async function hourlyTask() {
@@ -1516,19 +1567,26 @@ async function hourlyTask() {
   console.log(`[cron] ===== 완료 =====\n`);
 }
 
+function scheduleNextPublish() {
+  if (!schedulerRunning) return null;
+  const nextRun = getNextPublishRuns(new Date(), 1)[0];
+  if (!nextRun) return null;
+  const delay = Math.max(1000, nextRun.at.getTime() - Date.now());
+  schedulerTimeout = setTimeout(async () => {
+    await hourlyTask();
+    scheduleNextPublish();
+  }, delay);
+  console.log(`[cron] Next publish: ${nextRun.at.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (${CATEGORIES[nextRun.category].name})`);
+  return { ...nextRun, delay };
+}
+
 // Cron control endpoints
 app.post('/api/cron/start', (req, res) => {
   if (schedulerRunning) return res.json({ message: 'Already running' });
   schedulerRunning = true;
-  // Run every hour at :00
-  const now = new Date();
-  const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000;
-  schedulerTimeout = setTimeout(() => {
-    hourlyTask();
-    schedulerInterval = setInterval(hourlyTask, 60 * 60 * 1000); // every hour
-  }, msUntilNextHour);
-  console.log(`[cron] Scheduler started. Next run in ${Math.floor(msUntilNextHour / 60000)}분`);
-  res.json({ success: true, message: `Scheduler started. Next run in ${Math.floor(msUntilNextHour / 60000)} min` });
+  const nextRun = scheduleNextPublish();
+  const minutes = Math.max(1, Math.ceil(nextRun.delay / 60000));
+  res.json({ success: true, message: `Scheduler started. Next run in ${minutes} min`, nextRun: nextRun.at.toISOString() });
 });
 
 app.post('/api/cron/stop', (req, res) => {
@@ -1544,15 +1602,12 @@ app.post('/api/cron/run', async (req, res) => {
 app.get('/api/cron/status', (req, res) => {
   const category = getCurrentCategory();
   const catName = CATEGORIES[category]?.name || category;
+  const nextRuns = getNextPublishRuns(new Date(), 4);
   res.json({
     running: schedulerRunning,
-    schedule: '24/7 매시간',
+    schedule: '매일 4회 (KST 00·06·12·18시)',
     currentCategory: `${catName} (${category})`,
-    nextCategories: [0,1,2].map(i => {
-      const h = (new Date().getHours() + i) % 24;
-      const c = ['policy','benefits','lifestyle'][h % 3];
-      return `${h}시: ${CATEGORIES[c].name}`;
-    }),
+    nextCategories: nextRuns.map(run => `${run.at.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })} ${String(run.hour).padStart(2, '0')}시: ${CATEGORIES[run.category].name}`),
     completed: completed.length
   });
 });
@@ -1577,6 +1632,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /api/cron/stop    - Stop scheduler`);
   console.log(`  POST /api/cron/run     - Run now (manual trigger)`);
   console.log(`  GET  /api/cron/status  - Scheduler status`);
-  console.log(`\n⏰ 매시간 자동: POST /api/cron/start`);
+  console.log(`\n⏰ 하루 4회 자동 (KST 00·06·12·18시): POST /api/cron/start`);
   console.log(`🔥 즉시 실행: POST /api/cron/run`);
 });

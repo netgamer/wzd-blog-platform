@@ -371,22 +371,25 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
 }
 
 /* === Related Posts === */
-.related-posts { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); }
-.related-posts h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
-.related-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.related-posts { margin: 2.5rem 0; padding-top: 1.5rem; border-top: 2px solid var(--color-text); }
+.related-posts h2 { font-size: 1.25rem; font-weight: 800; margin-bottom: 1rem; }
+.related-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .related-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: var(--color-bg-light);
-  transition: background 0.15s;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  min-height: 88px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: white;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.related-card:hover { background: var(--color-border); text-decoration: none; }
-.related-title { font-weight: 500; color: var(--color-text); font-size: 0.95rem; }
-.related-card time { font-size: 0.8rem; color: var(--color-text-light); white-space: nowrap; flex-shrink: 0; }
+.related-card:hover { border-color: var(--color-primary); box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08); text-decoration: none; }
+.related-card img { width: 112px; height: 100%; min-height: 88px; object-fit: cover; }
+.related-copy { display: flex; min-width: 0; padding: 0.7rem 0.8rem; flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+.related-category { font-size: 0.75rem; font-weight: 700; color: var(--color-primary); }
+.related-title { display: -webkit-box; overflow: hidden; color: var(--color-text); font-size: 0.92rem; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.related-card time { margin-top: auto; font-size: 0.75rem; color: var(--color-text-light); }
 
 /* === Callout Boxes === */
 .callout {
@@ -827,7 +830,9 @@ img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
   .toc { padding: 0.85rem 1rem; }
 
   /* 관련 포스트 */
-  .related-card { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+  .related-list { grid-template-columns: 1fr; }
+  .related-card { grid-template-columns: 104px minmax(0, 1fr); }
+  .related-card img { width: 104px; }
 
   /* 페이지네이션 */
   .pagination { gap: 0.35rem; }

@@ -1,12 +1,16 @@
-{{ $related := .Site.RegularPages.Related . | first 3 }}
+{{ $related := .Site.RegularPages.Related . | first 4 }}
 {{ if $related }}
-<section class="related-posts">
-  <h3>관련 글</h3>
+  <section class="related-posts" id="related-articles">
+  <h2>이어서 볼 기사</h2>
   <div class="related-list">
     {{ range $related }}
     <a href="{{ .Permalink }}" class="related-card">
-      <span class="related-title">{{ .Title }}</span>
-      <time>{{ .Date.Format "2006.01.02" }}</time>
+      {{ with .Params.image }}<img src="{{ . | relURL }}" alt="" loading="lazy">{{ end }}
+      <span class="related-copy">
+        {{ with .Params.categories }}<span class="related-category">{{ index . 0 }}</span>{{ end }}
+        <strong class="related-title">{{ .Title }}</strong>
+        <time>{{ .Date.Format "2006.01.02" }}</time>
+      </span>
     </a>
     {{ end }}
   </div>
