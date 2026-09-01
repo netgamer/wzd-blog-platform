@@ -56,6 +56,11 @@ function getKoreaDateString(date = new Date()) {
   }).format(date);
 }
 
+function getPublishedPostUrl(postFilename) {
+  const slug = String(postFilename || '').replace(/\.md$/i, '');
+  return `https://news.wzd.kr/posts/${encodeURIComponent(slug)}/`;
+}
+
 // Load .env.local
 const envPath = join(PROJECT_ROOT, '.env.local');
 if (existsSync(envPath)) {
@@ -957,7 +962,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
       console.log('[upload] Deploying post + all three images together...');
       deployBlog(group.blogSlug);
-      notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: ${expectedCount}장 검수 완료\n파일: ${group.postFilename}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+      notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: ${expectedCount}장 검수 완료\n기사 보기: ${getPublishedPostUrl(group.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
       return res.json({ success: true, message: 'Post + all three images saved and deployed' });
     }
 
@@ -979,7 +984,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     deployBlog(job.blogSlug);
 
     // 5. Telegram notification
-    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n카테고리: ${job.blogSlug}\n파일: ${job.postFilename}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n카테고리: ${job.blogSlug}\n기사 보기: ${getPublishedPostUrl(job.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
 
     res.json({ success: true, message: 'Post + image saved and deployed' });
   } catch (err) {
@@ -1438,7 +1443,7 @@ async function generateImageViaCDP(job) {
     deployBlog(job.blogSlug);
 
     // Notify
-    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n이미지: ✅ ChatGPT 생성\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n이미지: ✅ ChatGPT 생성\n기사 보기: ${getPublishedPostUrl(job.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
 
     return true;
 
