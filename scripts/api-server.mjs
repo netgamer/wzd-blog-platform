@@ -434,7 +434,10 @@ const CATEGORIES = {
       '실업급여', '청년도약계좌', '청년월세지원', '출산지원금', '육아휴직',
       '건강보험료', '국민연금', '기초연금', '주거급여', '에너지바우처',
       '소상공인 지원', '전세대출', '주택청약', '교육급여', '긴급복지',
-      '소득공제', '세액공제', '월세공제', '의료비공제', '카드공제'
+      '소득공제', '세액공제', '월세공제', '의료비공제', '카드공제',
+      '부모급여', '첫만남이용권', '청년내일저축계좌', '국가장학금',
+      '한부모가족 지원', '내일배움카드', '문화누리카드', '아이돌봄서비스',
+      '노인일자리', '장애인연금', '평생교육바우처', '재난적의료비 지원'
     ],
     trendTerms: ['지원금', '환급', '신청', '보험', '연금', '대출', '공제', '급여', '세금', '수당'],
     searchSuffix: '신청방법 조건 금액 2026',
@@ -508,10 +511,14 @@ function findTopicForCategory(trends, category) {
     cat.keywords = getLifestyleKeywords();
   }
 
+  function unused(topic) {
+    return !findExistingPostByTitle(buildArticleTitle(topic, category));
+  }
+
   // 1. Match trends to category keywords
   for (const trend of trends) {
     for (const kw of cat.keywords) {
-      if (trend.includes(kw) || kw.includes(trend)) {
+      if ((trend.includes(kw) || kw.includes(trend)) && unused(trend)) {
         return { topic: trend, source: 'google-trends', category, matchedKeyword: kw };
       }
     }
@@ -520,20 +527,39 @@ function findTopicForCategory(trends, category) {
   // 2. Match trends to general terms
   for (const trend of trends) {
     for (const term of cat.trendTerms) {
-      if (trend.includes(term)) {
+      if (trend.includes(term) && unused(trend)) {
         return { topic: trend, source: 'google-trends-related', category, matchedKeyword: term };
       }
     }
   }
 
-  // 3. Fallback to random keyword from category
+  // 3. Fallback to an unused keyword from category
   const keywords = category === 'lifestyle' ? getLifestyleKeywords() : cat.keywords;
-  const kw = keywords[Math.floor(Math.random() * keywords.length)];
+  const unusedKeywords = keywords.filter(unused);
+  if (!unusedKeywords.length) return null;
+  const kw = unusedKeywords[Math.floor(Math.random() * unusedKeywords.length)];
   return { topic: kw, source: 'keyword-fallback', category, matchedKeyword: kw };
 }
 
-const PUBLISH_HOURS_KST = [0, 6, 12, 18];
-const PUBLISH_CATEGORIES = ['policy', 'benefits', 'lifestyle', 'policy'];
+function buildArticleTitle(topic, category) {
+  const categoryTitleSuffix = {
+    policy: '핵심 내용과 영향 정리',
+    benefits: '신청 조건과 혜택 총정리',
+    lifestyle: '추천 코스와 방문 팁'
+  };
+  return `${topic} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+}
+
+const SCHEDULE_SLOTS_KST = [
+  { hour: 7, minute: 30, mode: 'publish', category: 'benefits', label: '신규 글' },
+  { hour: 13, minute: 30, mode: 'refresh', category: null, label: '기존 글 갱신' },
+  { hour: 18, minute: 30, mode: 'publish', category: 'policy', label: '신규 글' }
+];
+
+const REFRESH_KEYWORDS = [
+  'K리그', 'KBO', '삼성 라이온즈', 'LCK', '드라마', '연예',
+  '지원금', '월세', '근로장려금', '건강보험', '국민연금', '실업급여'
+];
 
 function getKstDateParts(date = new Date()) {
   const shifted = new Date(date.getTime() + 9 * 60 * 60 * 1000);
@@ -541,15 +567,18 @@ function getKstDateParts(date = new Date()) {
     year: shifted.getUTCFullYear(),
     month: shifted.getUTCMonth(),
     day: shifted.getUTCDate(),
-    hour: shifted.getUTCHours()
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes()
   };
 }
 
 function getCurrentCategory(date = new Date()) {
-  const { hour } = getKstDateParts(date);
-  let slot = PUBLISH_HOURS_KST.findLastIndex(publishHour => publishHour <= hour);
-  if (slot < 0) slot = PUBLISH_HOURS_KST.length - 1;
-  return PUBLISH_CATEGORIES[slot];
+  const { hour, minute } = getKstDateParts(date);
+  const currentMinutes = hour * 60 + minute;
+  const publishSlots = SCHEDULE_SLOTS_KST.filter(slot => slot.mode === 'publish');
+  let slot = publishSlots.findLastIndex(item => item.hour * 60 + item.minute <= currentMinutes);
+  if (slot < 0) slot = publishSlots.length - 1;
+  return publishSlots[slot].category;
 }
 
 function getNextPublishRuns(date = new Date(), count = 4) {
@@ -558,14 +587,40 @@ function getNextPublishRuns(date = new Date(), count = 4) {
   const { year, month, day } = getKstDateParts(date);
   const runs = [];
   for (let dayOffset = 0; runs.length < count && dayOffset < 3; dayOffset += 1) {
-    for (let slot = 0; slot < PUBLISH_HOURS_KST.length && runs.length < count; slot += 1) {
-      const hour = PUBLISH_HOURS_KST[slot];
-      const atMs = Date.UTC(year, month, day + dayOffset, hour) - KST_OFFSET_MS;
+    for (const slot of SCHEDULE_SLOTS_KST) {
+      if (runs.length >= count) break;
+      const atMs = Date.UTC(year, month, day + dayOffset, slot.hour, slot.minute) - KST_OFFSET_MS;
       if (atMs <= nowMs + 1000) continue;
-      runs.push({ at: new Date(atMs), hour, category: PUBLISH_CATEGORIES[slot] });
+      runs.push({ at: new Date(atMs), ...slot });
     }
   }
   return runs;
+}
+
+function setFrontmatterValue(frontmatter, key, value) {
+  const line = `${key}: ${value}`;
+  const pattern = new RegExp(`^${key}:.*$`, 'mi');
+  if (pattern.test(frontmatter)) return frontmatter.replace(pattern, line);
+  return frontmatter.replace(/\n---\s*$/, `\n${line}\n---`);
+}
+
+function findRefreshCandidate() {
+  const postsDir = join(PROJECT_ROOT, 'sites', 'tax-yearend', 'content', 'posts');
+  const candidates = readdirSync(postsDir)
+    .filter(name => name.endsWith('.md'))
+    .map(filename => {
+      const content = readFileSync(join(postsDir, filename), 'utf-8');
+      const meta = parseFrontmatter(content);
+      if (/^draft:\s*true\s*$/mi.test(content) || /^aliases:/mi.test(content)) return null;
+      const title = meta.title || '';
+      const priority = REFRESH_KEYWORDS.some(keyword => title.includes(keyword)) ? 1 : 0;
+      const freshness = meta.lastmod || meta.date || '1970-01-01';
+      return { filename, content, meta, title, priority, freshness };
+    })
+    .filter(Boolean)
+    .filter(item => item.title && item.priority > 0)
+    .sort((a, b) => b.priority - a.priority || String(a.freshness).localeCompare(String(b.freshness)));
+  return candidates[0] || null;
 }
 
 // --- API Routes ---
@@ -611,6 +666,7 @@ app.post('/api/generate', async (req, res) => {
       console.log('[generate] Fetching Google Trends KR...');
       const trends = await fetchGoogleTrendsKR();
       const match = findTopicForCategory(trends, category);
+      if (!match) throw new Error(`${cat.name} 카테고리의 미발행 주제 후보가 없습니다.`);
       topicTitle = match.topic;
       topicSource = match.source;
       console.log(`[generate] Topic from ${topicSource}: ${topicTitle} (matched: ${match.matchedKeyword})`);
@@ -687,12 +743,7 @@ A: 답변내용.`
 
     const prompts = partPrompts[category] || partPrompts.benefits;
 
-    const categoryTitleSuffix = {
-      policy: '핵심 내용과 영향 정리',
-      benefits: '신청 조건과 혜택 총정리',
-      lifestyle: '추천 코스와 방문 팁'
-    };
-    const cleanTitle = `${topicTitle} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+    const cleanTitle = buildArticleTitle(topicTitle, category);
     const existingPost = findExistingPostByTitle(cleanTitle);
     if (existingPost) {
       throw new Error(`동일 제목 글이 이미 발행되어 있습니다: ${existingPost}`);
@@ -835,7 +886,72 @@ image: "/images/${imageFilename}"
 });
 
 app.get('/api/text-queue', (req, res) => {
-  res.json(textQueue.filter(job => job.status === 'pending'));
+  const now = Date.now();
+  res.json(textQueue.filter(job => job.status === 'pending' && (!job.nextDispatchAt || new Date(job.nextDispatchAt).getTime() <= now)));
+});
+
+app.post('/api/refresh', async (req, res) => {
+  try {
+    const candidate = req.body?.filename
+      ? (() => {
+          const filename = String(req.body.filename).replace(/[\\/]/g, '');
+          const content = readFileSync(safePostPath(filename), 'utf-8');
+          const meta = parseFrontmatter(content);
+          return { filename, content, meta, title: meta.title || filename.replace(/\.md$/, '') };
+        })()
+      : findRefreshCandidate();
+    if (!candidate) return res.status(404).json({ error: '갱신할 성과 글을 찾지 못했습니다.' });
+
+    const research = await researchTopic(candidate.title, 'policy');
+    if (research.count < 2) {
+      return res.status(422).json({ error: `갱신용 출처가 부족합니다 (${research.count}/2). 기존 글은 변경하지 않습니다.` });
+    }
+
+    const existingBody = candidate.content.replace(/^---[\s\S]*?---/, '').trim();
+    const textPrompt = `기존 뉴스 글을 최신 정보로 정밀하게 갱신하세요.
+
+제목: ${candidate.title}
+현재 날짜: ${getKoreaDateString()}
+
+기존 본문:
+${existingBody.slice(0, 9000)}
+
+최신 참고 자료:
+${research.text.slice(0, 7000)}
+
+필수 조건:
+- 프론트매터와 제목은 쓰지 말고 완성된 본문만 작성
+- 기존 글의 유효한 설명은 살리되, 최신 참고 자료로 달라진 사실과 수치를 보강
+- 참고 자료에 없는 사실, 날짜, 금액, 인물, 장소를 만들지 않기
+- ## 소제목, 표, FAQ를 포함해 최소 2500자 이상
+- 이미지 태그는 쓰지 않기. 기존 대표 이미지·인포그래픽·4컷만화는 서버가 유지함
+- 글 마지막에 ## 출처를 만들고 실제로 사용한 URL만 목록으로 표시`;
+
+    const textJob = {
+      id: `refresh-${Date.now()}`,
+      type: 'text',
+      mode: 'refresh',
+      blogId: 'policy-guide',
+      blogSlug: 'tax-yearend',
+      postFilename: candidate.filename,
+      originalPostContent: candidate.content,
+      topicTitle: candidate.title,
+      title: candidate.title,
+      category: 'policy',
+      categoryName: candidate.meta.categories || '최신뉴스',
+      researchSourceCount: research.count,
+      textPrompt,
+      minLength: 1800,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    textQueue.push(textJob);
+    console.log(`[refresh] Text refresh queued: ${candidate.filename}`);
+    res.json({ success: true, mode: 'refresh', job: textJob, post: { filename: candidate.filename, title: candidate.title } });
+  } catch (err) {
+    console.error('[refresh] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/text-complete', (req, res) => {
@@ -864,6 +980,30 @@ app.post('/api/text-complete', (req, res) => {
   }
   if (content.length < textJob.minLength || !content.includes('## ')) {
     return res.status(400).json({ error: `본문 품질 미달 (${content.length}자)` });
+  }
+
+  if (textJob.mode === 'refresh') {
+    const original = textJob.originalPostContent || '';
+    const frontmatterMatch = original.match(/^---\s*\n[\s\S]*?\n---/);
+    if (!frontmatterMatch) return res.status(409).json({ error: '기존 글의 frontmatter를 읽을 수 없습니다.' });
+    const meta = parseFrontmatter(original);
+    const slug = (meta.image || '').match(/\/images\/(.+)\.png$/)?.[1]
+      || textJob.postFilename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+    const excerpt = content.replace(/[#>*|`_~\-\[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+    let frontmatter = setFrontmatterValue(frontmatterMatch[0], 'lastmod', getKoreaDateString());
+    frontmatter = setFrontmatterValue(frontmatter, 'description', `"${excerpt.replace(/"/g, '\\"')}"`);
+    const refreshedContent = `${frontmatter}\n\n${insertArticleImages(content, slug, textJob.title)}`;
+    writeFileSync(safePostPath(textJob.postFilename), refreshedContent, 'utf-8');
+    textQueue.splice(idx, 1);
+    textJob.status = 'completed';
+    textJob.completedAt = new Date().toISOString();
+    delete textJob.originalPostContent;
+    delete textJob.textPrompt;
+    completed.push(textJob);
+    deployBlog(textJob.blogSlug, generatedDeployPaths(textJob.blogSlug, textJob.postFilename, []));
+    notifyTelegram(`♻️ 기존 글 갱신 완료\n\n제목: ${textJob.title}\n기사 보기: ${getPublishedPostUrl(textJob.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+    console.log(`[text-complete] Existing post refreshed: ${textJob.postFilename}`);
+    return res.json({ success: true, mode: 'refresh', postFilename: textJob.postFilename });
   }
 
   const date = getKoreaDateString();
@@ -909,6 +1049,15 @@ image: "/images/${imageFilename}"
 app.post('/api/text-error', (req, res) => {
   const { jobId, error } = req.body || {};
   const idx = textQueue.findIndex(job => String(job.id) === String(jobId));
+  const retryableWindowError = /No current window|Could not establish connection|Receiving end does not exist/i.test(String(error || ''));
+  if (idx >= 0 && retryableWindowError) {
+    const job = textQueue[idx];
+    job.dispatchRetries = (job.dispatchRetries || 0) + 1;
+    job.lastDispatchError = error;
+    job.nextDispatchAt = new Date(Date.now() + 60 * 1000).toISOString();
+    console.warn(`[text-error] Keeping job pending for dispatch retry ${job.dispatchRetries}: ${job.id} ${error}`);
+    return res.json({ success: true, retry: true, retryCount: job.dispatchRetries, nextDispatchAt: job.nextDispatchAt, job });
+  }
   const job = idx >= 0 ? textQueue.splice(idx, 1)[0] : { id: jobId, title: 'unknown' };
   job.status = 'failed';
   job.error = error || 'text-error';
@@ -1508,7 +1657,7 @@ async function generateImageViaCDP(job) {
   }
 }
 
-// --- Four-times-daily Scheduler ---
+// --- Daily publish and refresh scheduler ---
 
 let schedulerRunning = false;
 let schedulerTimeout = null;
@@ -1519,7 +1668,7 @@ function stopSchedulerNow() {
   schedulerTimeout = null;
 }
 
-async function hourlyTask() {
+async function hourlyTask(options = {}) {
   if (!schedulerRunning) {
     console.log('[cron] Skipped because scheduler is stopped');
     return;
@@ -1527,7 +1676,7 @@ async function hourlyTask() {
 
   const now = new Date();
   const kstHour = (now.getUTCHours() + 9) % 24;
-  const category = getCurrentCategory();
+  const category = options.category || getCurrentCategory();
   const catName = CATEGORIES[category]?.name || category;
 
   console.log(`\n[cron] ===== ${now.toISOString()} (KST ${kstHour}시) [${catName}] 자동 포스트 생성 =====`);
@@ -1537,7 +1686,7 @@ async function hourlyTask() {
     const genRes = await fetch(`http://localhost:${PORT}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({ category })
     });
     const genData = await genRes.json();
 
@@ -1567,16 +1716,39 @@ async function hourlyTask() {
   console.log(`[cron] ===== 완료 =====\n`);
 }
 
+async function refreshTask() {
+  if (!schedulerRunning) {
+    console.log('[cron] Refresh skipped because scheduler is stopped');
+    return;
+  }
+  console.log(`\n[cron] ===== ${new Date().toISOString()} 기존 성과 글 갱신 =====`);
+  try {
+    const response = await fetch(`http://localhost:${PORT}/api/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await response.json();
+    if (!data.success) console.error('[cron] Refresh queue failed:', data.error);
+    else console.log(`[cron] Refresh queued in Chrome Extension: "${data.post.title}"`);
+  } catch (err) {
+    console.error('[cron] Refresh error:', err.message);
+  }
+  console.log('[cron] ===== 갱신 대기 =====\n');
+}
+
 function scheduleNextPublish() {
   if (!schedulerRunning) return null;
   const nextRun = getNextPublishRuns(new Date(), 1)[0];
   if (!nextRun) return null;
   const delay = Math.max(1000, nextRun.at.getTime() - Date.now());
   schedulerTimeout = setTimeout(async () => {
-    await hourlyTask();
+    if (nextRun.mode === 'refresh') await refreshTask();
+    else await hourlyTask({ category: nextRun.category });
     scheduleNextPublish();
   }, delay);
-  console.log(`[cron] Next publish: ${nextRun.at.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (${CATEGORIES[nextRun.category].name})`);
+  const detail = nextRun.mode === 'refresh' ? nextRun.label : `${nextRun.label} · ${CATEGORIES[nextRun.category].name}`;
+  console.log(`[cron] Next task: ${nextRun.at.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (${detail})`);
   return { ...nextRun, delay };
 }
 
@@ -1596,18 +1768,22 @@ app.post('/api/cron/stop', (req, res) => {
 
 app.post('/api/cron/run', async (req, res) => {
   res.json({ success: true, message: 'Running now...' });
-  hourlyTask();
+  hourlyTask({ category: req.body?.category || getCurrentCategory() });
 });
 
 app.get('/api/cron/status', (req, res) => {
   const category = getCurrentCategory();
   const catName = CATEGORIES[category]?.name || category;
-  const nextRuns = getNextPublishRuns(new Date(), 4);
+  const nextRuns = getNextPublishRuns(new Date(), 5);
   res.json({
     running: schedulerRunning,
-    schedule: '매일 4회 (KST 00·06·12·18시)',
+    schedule: '신규 글 2회 (KST 07:30·18:30) + 기존 글 갱신 1회 (13:30)',
     currentCategory: `${catName} (${category})`,
-    nextCategories: nextRuns.map(run => `${run.at.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })} ${String(run.hour).padStart(2, '0')}시: ${CATEGORIES[run.category].name}`),
+    nextCategories: nextRuns.map(run => {
+      const time = `${String(run.hour).padStart(2, '0')}:${String(run.minute).padStart(2, '0')}`;
+      const task = run.mode === 'refresh' ? run.label : `${run.label} · ${CATEGORIES[run.category].name}`;
+      return `${run.at.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })} ${time}: ${task}`;
+    }),
     completed: completed.length
   });
 });
@@ -1628,10 +1804,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /api/generate     - Generate post + queue image`);
   console.log(`  GET  /api/queue        - Pending image jobs`);
   console.log(`  POST /api/upload       - Upload completed image`);
-  console.log(`  POST /api/cron/start   - Start hourly scheduler`);
+  console.log(`  POST /api/cron/start   - Start daily scheduler`);
   console.log(`  POST /api/cron/stop    - Stop scheduler`);
   console.log(`  POST /api/cron/run     - Run now (manual trigger)`);
   console.log(`  GET  /api/cron/status  - Scheduler status`);
-  console.log(`\n⏰ 하루 4회 자동 (KST 00·06·12·18시): POST /api/cron/start`);
+  console.log(`\n⏰ 신규 글 2회 + 기존 글 갱신 1회 자동: POST /api/cron/start`);
   console.log(`🔥 즉시 실행: POST /api/cron/run`);
 });

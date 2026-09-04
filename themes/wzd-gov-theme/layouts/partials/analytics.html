@@ -6,5 +6,61 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', '{{ .Site.Params.gaId }}');
+
+  document.addEventListener('DOMContentLoaded', function () {
+    function track(name, params) {
+      if (typeof window.gtag === 'function') window.gtag('event', name, params || {});
+    }
+
+    {{ if and .IsPage (eq .Section "posts") }}
+    var sentScroll75 = false;
+    function trackReadingDepth() {
+      if (sentScroll75) return;
+      var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxScroll > 0 && window.scrollY / maxScroll >= 0.75) {
+        sentScroll75 = true;
+        track('article_scroll_75', {
+          article_title: {{ .Title | jsonify | safeJS }},
+          article_path: window.location.pathname
+        });
+      }
+    }
+    window.addEventListener('scroll', trackReadingDepth, { passive: true });
+    {{ end }}
+
+    document.addEventListener('click', function (event) {
+      var related = event.target.closest('.related-card');
+      if (related) {
+        track('related_article_click', {
+          link_url: related.href,
+          link_text: (related.querySelector('.related-title') || related).textContent.trim()
+        });
+      }
+
+      var affiliate = event.target.closest('a[data-affiliate-link]');
+      if (affiliate) {
+        track('affiliate_click', {
+          link_url: affiliate.href,
+          placement: affiliate.dataset.affiliatePlacement || 'unknown'
+        });
+      }
+    });
+
+    document.querySelectorAll('.coupang-partners-ad').forEach(function (ad) {
+      var viewed = false;
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries, observer) {
+          if (!viewed && entries.some(function (entry) { return entry.isIntersecting && entry.intersectionRatio >= 0.5; })) {
+            viewed = true;
+            track('affiliate_ad_view', { placement: 'article_body' });
+            observer.disconnect();
+          }
+        }, { threshold: [0.5] }).observe(ad);
+      }
+      ad.addEventListener('pointerdown', function () {
+        track('affiliate_ad_interaction', { placement: 'article_body' });
+      }, { once: true });
+    });
+  });
 </script>
 {{ end }}
