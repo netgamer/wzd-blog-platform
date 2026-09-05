@@ -58,7 +58,10 @@ export function validateArticleContent({ category, title = '', content = '' }) {
 
   const placeholderCount = (content.match(PLACEHOLDER_PATTERN) || []).length;
   PLACEHOLDER_PATTERN.lastIndex = 0;
-  if (placeholderCount >= 5) {
+  // Policy and benefits articles often contain legitimate caveats such as
+  // "자료만으로 확인할 수 없습니다". Keep blocking heavily padded output,
+  // while the stricter lifestyle checks below still reject placeholder venues.
+  if (placeholderCount >= 10) {
     return { ok: false, reason: `확인 불가 항목이 지나치게 많습니다 (${placeholderCount}건).` };
   }
 
