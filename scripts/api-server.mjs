@@ -158,6 +158,30 @@ async function sendSocialWebhook(title, postFilename, imageFilenames = []) {
   }
 }
 
+async function submitIndexNow(postFilename) {
+  const key = process.env.INDEXNOW_KEY || 'fa329fa46ac46374806cbf82fe8f68d0';
+  const url = getPublishedPostUrl(postFilename);
+  try {
+    const response = await fetch('https://api.indexnow.org/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        host: 'news.wzd.kr',
+        key,
+        keyLocation: `https://news.wzd.kr/${key}.txt`,
+        urlList: [url]
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (![200, 202].includes(response.status)) throw new Error(`IndexNow ${response.status}`);
+    console.log(`[indexnow] Submitted: ${url} (${response.status})`);
+    return { status: 'sent', responseCode: response.status };
+  } catch (error) {
+    console.warn('[indexnow] Submission failed:', error.message);
+    return { status: 'failed', error: error.message };
+  }
+}
+
 async function distributePublishedPost({ title, postFilename, imageFilenames = [] }) {
   const naverUrl = getTrackedPostUrl(postFilename, 'naver_blog', 'referral');
   const record = {
@@ -170,6 +194,7 @@ async function distributePublishedPost({ title, postFilename, imageFilenames = [
       telegram: { status: 'pending' },
       threads: { status: 'pending' },
       webhook: { status: 'pending' },
+      indexnow: { status: 'pending' },
       naver: { status: 'copy-ready', url: naverUrl, teaser: socialCopy(title, naverUrl) }
     }
   };
@@ -177,14 +202,16 @@ async function distributePublishedPost({ title, postFilename, imageFilenames = [
   saveSocialHistory();
 
   const telegramUrl = getTrackedPostUrl(postFilename, 'telegram');
-  const [telegram, threads, webhook] = await Promise.all([
+  const [telegram, threads, webhook, indexnow] = await Promise.all([
     notifyTelegram(`새 블로그 발행\n\n제목: ${title}\n기사 보기: ${telegramUrl}\n시간: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`),
     publishToThreads(title, postFilename),
-    sendSocialWebhook(title, postFilename, imageFilenames)
+    sendSocialWebhook(title, postFilename, imageFilenames),
+    submitIndexNow(postFilename)
   ]);
   record.channels.telegram = telegram.ok ? { status: 'sent' } : { status: 'failed', error: telegram.error };
   record.channels.threads = threads;
   record.channels.webhook = webhook;
+  record.channels.indexnow = indexnow;
   record.completedAt = new Date().toISOString();
   saveSocialHistory();
   console.log(`[social] Distribution complete: ${record.id}`);
@@ -1602,7 +1629,8 @@ app.get('/api/dashboard', (req, res) => {
       configured: {
         telegram: Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID),
         threads: Boolean(process.env.THREADS_USER_ID && process.env.THREADS_ACCESS_TOKEN),
-        webhook: Boolean(process.env.SOCIAL_WEBHOOK_URL)
+        webhook: Boolean(process.env.SOCIAL_WEBHOOK_URL),
+        indexnow: true
       },
       latest: socialHistory.at(-1) || null
     },
@@ -1637,7 +1665,8 @@ app.get('/api/social/status', requireAdmin, (req, res) => {
     configured: {
       telegram: Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID),
       threads: Boolean(process.env.THREADS_USER_ID && process.env.THREADS_ACCESS_TOKEN),
-      webhook: Boolean(process.env.SOCIAL_WEBHOOK_URL)
+      webhook: Boolean(process.env.SOCIAL_WEBHOOK_URL),
+      indexnow: true
     },
     history: socialHistory.slice(-20).reverse()
   });

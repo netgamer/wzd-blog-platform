@@ -44,6 +44,14 @@
           placement: affiliate.dataset.affiliatePlacement || 'unknown'
         });
       }
+
+      var share = event.target.closest('[data-share-channel]');
+      if (share) {
+        track('article_share', {
+          method: share.dataset.shareChannel,
+          article_path: window.location.pathname
+        });
+      }
     });
 
     document.querySelectorAll('.coupang-partners-ad').forEach(function (ad) {

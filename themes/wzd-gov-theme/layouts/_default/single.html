@@ -25,12 +25,18 @@
   {{ end }}
 
   {{/* 공유 버튼 */}}
+  {{ $xShareURL := printf "%s?utm_source=x&utm_medium=social&utm_campaign=reader_share" .Permalink }}
+  {{ $facebookShareURL := printf "%s?utm_source=facebook&utm_medium=social&utm_campaign=reader_share" .Permalink }}
+  {{ $naverShareURL := printf "%s?utm_source=naver_share&utm_medium=social&utm_campaign=reader_share" .Permalink }}
+  {{ $lineShareURL := printf "%s?utm_source=line&utm_medium=social&utm_campaign=reader_share" .Permalink }}
   <div class="share-buttons">
     <span class="share-label">공유하기</span>
-    <a href="https://twitter.com/intent/tweet?url={{ .Permalink }}&text={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-twitter" title="트위터 공유">𝕏</a>
-    <a href="https://www.facebook.com/sharer/sharer.php?u={{ .Permalink }}" target="_blank" rel="noopener" class="share-btn share-facebook" title="페이스북 공유">f</a>
-    <a href="https://social-plugins.line.me/lineit/share?url={{ .Permalink }}" target="_blank" rel="noopener" class="share-btn share-line" title="라인 공유">L</a>
-    <button class="share-btn share-copy" onclick="navigator.clipboard.writeText('{{ .Permalink }}').then(()=>this.textContent='복사됨!').catch(()=>{})" title="링크 복사">🔗</button>
+    <a href="https://twitter.com/intent/tweet?url={{ $xShareURL | urlquery }}&text={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-twitter" data-share-channel="x" title="X 공유">𝕏</a>
+    <a href="https://www.facebook.com/sharer/sharer.php?u={{ $facebookShareURL | urlquery }}" target="_blank" rel="noopener" class="share-btn share-facebook" data-share-channel="facebook" title="페이스북 공유">f</a>
+    <a href="https://share.naver.com/web/shareView?url={{ $naverShareURL | urlquery }}&title={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-naver" data-share-channel="naver" title="네이버 공유">N</a>
+    <a href="https://social-plugins.line.me/lineit/share?url={{ $lineShareURL | urlquery }}" target="_blank" rel="noopener" class="share-btn share-line" data-share-channel="line" title="라인 공유">L</a>
+    <button class="share-btn share-native" type="button" data-share-channel="native" data-share-url="{{ .Permalink }}" data-share-title="{{ .Title }}" title="공유 메뉴 열기">공유</button>
+    <button class="share-btn share-copy" type="button" data-share-channel="copy" data-share-url="{{ .Permalink }}?utm_source=copy_link&utm_medium=share&utm_campaign=reader_share" title="링크 복사">링크</button>
   </div>
 
   {{/* 목차 (TOC) */}}
@@ -74,9 +80,11 @@
     {{/* 하단 공유 버튼 */}}
     <div class="share-buttons share-bottom">
       <span class="share-label">이 글이 도움이 되셨나요? 공유해주세요!</span>
-      <a href="https://twitter.com/intent/tweet?url={{ .Permalink }}&text={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-twitter">𝕏</a>
-      <a href="https://www.facebook.com/sharer/sharer.php?u={{ .Permalink }}" target="_blank" rel="noopener" class="share-btn share-facebook">f</a>
-      <button class="share-btn share-copy" onclick="navigator.clipboard.writeText('{{ .Permalink }}').then(()=>this.textContent='복사됨!')">🔗 링크복사</button>
+      <a href="https://twitter.com/intent/tweet?url={{ $xShareURL | urlquery }}&text={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-twitter" data-share-channel="x">𝕏</a>
+      <a href="https://www.facebook.com/sharer/sharer.php?u={{ $facebookShareURL | urlquery }}" target="_blank" rel="noopener" class="share-btn share-facebook" data-share-channel="facebook">f</a>
+      <a href="https://share.naver.com/web/shareView?url={{ $naverShareURL | urlquery }}&title={{ .Title | urlquery }}" target="_blank" rel="noopener" class="share-btn share-naver" data-share-channel="naver">N</a>
+      <button class="share-btn share-native" type="button" data-share-channel="native" data-share-url="{{ .Permalink }}" data-share-title="{{ .Title }}">공유</button>
+      <button class="share-btn share-copy" type="button" data-share-channel="copy" data-share-url="{{ .Permalink }}?utm_source=copy_link&utm_medium=share&utm_campaign=reader_share">링크 복사</button>
     </div>
 
     <div class="post-disclaimer">
@@ -119,6 +127,21 @@ document.querySelectorAll('.post-mid-image img').forEach(function(img){
     var o=document.getElementById('img-overlay');
     document.getElementById('img-overlay-src').src=this.src;
     o.style.display='flex';
+  });
+});
+document.querySelectorAll('.share-copy').forEach(function(button){
+  button.addEventListener('click',function(){
+    var original=this.textContent;
+    navigator.clipboard.writeText(this.dataset.shareUrl).then(()=>{
+      this.textContent='복사됨';
+      setTimeout(()=>{this.textContent=original},1500);
+    }).catch(()=>{});
+  });
+});
+document.querySelectorAll('.share-native').forEach(function(button){
+  if(!navigator.share){button.hidden=true;return;}
+  button.addEventListener('click',function(){
+    navigator.share({title:this.dataset.shareTitle,url:this.dataset.shareUrl+'?utm_source=native_share&utm_medium=share&utm_campaign=reader_share'}).catch(()=>{});
   });
 });
 </script>
