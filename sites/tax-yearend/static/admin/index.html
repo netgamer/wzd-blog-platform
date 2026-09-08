@@ -82,6 +82,7 @@ table.posts tr:hover td{background:#f0f7ff}
       <div class="card"><div class="card-label">대기 중 텍스트</div><div class="card-value" id="d-text">0</div><div class="card-sub">Extension 처리 대기</div></div>
       <div class="card"><div class="card-label">대기 중 이미지</div><div class="card-value" id="d-img">0</div><div class="card-sub">이미지 생성 대기</div></div>
       <div class="card"><div class="card-label">누적 완료</div><div class="card-value" id="d-done">0</div><div class="card-sub">서버 재시작 이후</div></div>
+      <div class="card"><div class="card-label">소셜 전송</div><div class="card-value" id="d-social">0</div><div class="card-sub" id="d-social-config">채널 확인 중</div></div>
     </div>
     <div class="actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <select id="catSelect" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:0.9rem">
@@ -104,6 +105,8 @@ table.posts tr:hover td{background:#f0f7ff}
     <div class="run-info"><table id="run-table"><tr><td colspan="2">로딩 중...</td></tr></table></div>
     <h2>최근 이벤트</h2>
     <div class="events" id="events">로딩 중...</div>
+    <h2>외부 채널</h2>
+    <div class="run-info"><table id="social-table"><tr><td colspan="2">로딩 중...</td></tr></table></div>
   </div>
 
   <div id="tab-posts" class="panel">
@@ -181,6 +184,16 @@ function refreshDash(){
     document.getElementById('d-text').textContent=d.counts.pendingTexts;
     document.getElementById('d-img').textContent=d.counts.pendingImages;
     document.getElementById('d-done').textContent=d.health.completed;
+    document.getElementById('d-social').textContent=d.counts.socialSent||0;
+    var configured=d.social&&d.social.configured||{};
+    document.getElementById('d-social-config').textContent='Telegram '+(configured.telegram?'연결':'미연결')+' · Threads '+(configured.threads?'연결':'설정 필요');
+    var latestSocial=d.social&&d.social.latest;
+    var socialRows=latestSocial&&latestSocial.channels?Object.keys(latestSocial.channels).map(function(name){
+      var channel=latestSocial.channels[name]||{};
+      var cls=channel.status==='sent'||channel.status==='copy-ready'?'badge-ok':channel.status==='failed'?'badge-fail':'badge-run';
+      return '<tr><td>'+name+'</td><td><span class="badge '+cls+'">'+(channel.status||'-')+'</span>'+(channel.error?' '+channel.error:'')+'</td></tr>';
+    }).join(''):'<tr><td colspan="2">아직 외부 배포 기록이 없습니다.</td></tr>';
+    document.getElementById('social-table').innerHTML=socialRows;
     var r2=d.currentRun||{};
     var badge=r2.status==='running'?'badge-run':r2.status==='failed'?'badge-fail':'badge-ok';
     document.getElementById('run-table').innerHTML=

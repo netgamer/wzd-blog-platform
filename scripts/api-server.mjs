@@ -38,10 +38,15 @@ async function notifyTelegram(message) {
       })
     });
     const data = await res.json();
-    if (!data.ok) console.warn('[telegram] Send failed:', data.description);
-    else console.log('[telegram] Notification sent');
+    if (!data.ok) {
+      console.warn('[telegram] Send failed:', data.description);
+      return { ok: false, error: data.description || 'Telegram API error' };
+    }
+    console.log('[telegram] Notification sent');
+    return { ok: true };
   } catch (e) {
     console.warn('[telegram] Notification failed:', e.message);
+    return { ok: false, error: e.message };
   }
 }
 const PROJECT_ROOT_WSL = '/home/netgamer/.openclaw/workspace/code/wzd-blog-platform';
@@ -59,6 +64,131 @@ function getKoreaDateString(date = new Date()) {
 function getPublishedPostUrl(postFilename) {
   const slug = String(postFilename || '').replace(/\.md$/i, '');
   return `https://news.wzd.kr/posts/${encodeURIComponent(slug)}/`;
+}
+
+function getTrackedPostUrl(postFilename, source, medium = 'social') {
+  const url = new URL(getPublishedPostUrl(postFilename));
+  url.searchParams.set('utm_source', source);
+  url.searchParams.set('utm_medium', medium);
+  url.searchParams.set('utm_campaign', 'auto_post');
+  return url.toString();
+}
+
+const socialRuntimeDir = join(PROJECT_ROOT, '.runtime');
+const socialHistoryPath = join(socialRuntimeDir, 'social-distribution.json');
+let socialHistory = [];
+
+try {
+  if (existsSync(socialHistoryPath)) socialHistory = JSON.parse(readFileSync(socialHistoryPath, 'utf-8'));
+} catch (error) {
+  console.warn('[social] Could not load history:', error.message);
+}
+
+function saveSocialHistory() {
+  mkdirSync(socialRuntimeDir, { recursive: true });
+  writeFileSync(socialHistoryPath, JSON.stringify(socialHistory.slice(-100), null, 2), 'utf-8');
+}
+
+function socialCopy(title, url, maxLength = 500) {
+  const suffix = `\n\n${url}\n\n#오늘의트렌드 #뉴스`;
+  const available = Math.max(40, maxLength - suffix.length);
+  const headline = title.length > available ? `${title.slice(0, available - 1)}…` : title;
+  return `${headline}${suffix}`;
+}
+
+async function publishToThreads(title, postFilename) {
+  const userId = process.env.THREADS_USER_ID;
+  const accessToken = process.env.THREADS_ACCESS_TOKEN;
+  if (!userId || !accessToken) return { status: 'configuration-required', error: 'THREADS_USER_ID / THREADS_ACCESS_TOKEN 필요' };
+
+  try {
+    const url = getTrackedPostUrl(postFilename, 'threads');
+    const createResponse = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ media_type: 'TEXT', text: socialCopy(title, url), access_token: accessToken }),
+      signal: AbortSignal.timeout(20000)
+    });
+    const creation = await createResponse.json();
+    if (!createResponse.ok || !creation.id) throw new Error(creation.error?.message || `Threads create ${createResponse.status}`);
+
+    const publishResponse = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(userId)}/threads_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ creation_id: creation.id, access_token: accessToken }),
+      signal: AbortSignal.timeout(20000)
+    });
+    const published = await publishResponse.json();
+    if (!publishResponse.ok || !published.id) throw new Error(published.error?.message || `Threads publish ${publishResponse.status}`);
+    return { status: 'sent', externalId: published.id };
+  } catch (error) {
+    console.warn('[social] Threads publish failed:', error.message);
+    return { status: 'failed', error: error.message };
+  }
+}
+
+async function sendSocialWebhook(title, postFilename, imageFilenames = []) {
+  const webhookUrl = process.env.SOCIAL_WEBHOOK_URL;
+  if (!webhookUrl) return { status: 'configuration-required', error: 'SOCIAL_WEBHOOK_URL 필요' };
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'post.published',
+        title,
+        postUrl: getPublishedPostUrl(postFilename),
+        channels: {
+          instagram: getTrackedPostUrl(postFilename, 'instagram'),
+          naver: getTrackedPostUrl(postFilename, 'naver_blog', 'referral'),
+          kakao: getTrackedPostUrl(postFilename, 'kakao'),
+          newsletter: getTrackedPostUrl(postFilename, 'newsletter', 'email')
+        },
+        images: imageFilenames.map(name => `https://news.wzd.kr/images/${encodeURIComponent(name)}`),
+        teaser: socialCopy(title, getTrackedPostUrl(postFilename, 'social_webhook')),
+        publishedAt: new Date().toISOString()
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (!response.ok) throw new Error(`Webhook ${response.status}`);
+    return { status: 'sent' };
+  } catch (error) {
+    console.warn('[social] Webhook failed:', error.message);
+    return { status: 'failed', error: error.message };
+  }
+}
+
+async function distributePublishedPost({ title, postFilename, imageFilenames = [] }) {
+  const naverUrl = getTrackedPostUrl(postFilename, 'naver_blog', 'referral');
+  const record = {
+    id: `social-${Date.now()}`,
+    title,
+    postFilename,
+    postUrl: getPublishedPostUrl(postFilename),
+    createdAt: new Date().toISOString(),
+    channels: {
+      telegram: { status: 'pending' },
+      threads: { status: 'pending' },
+      webhook: { status: 'pending' },
+      naver: { status: 'copy-ready', url: naverUrl, teaser: socialCopy(title, naverUrl) }
+    }
+  };
+  socialHistory.push(record);
+  saveSocialHistory();
+
+  const telegramUrl = getTrackedPostUrl(postFilename, 'telegram');
+  const [telegram, threads, webhook] = await Promise.all([
+    notifyTelegram(`새 블로그 발행\n\n제목: ${title}\n기사 보기: ${telegramUrl}\n시간: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`),
+    publishToThreads(title, postFilename),
+    sendSocialWebhook(title, postFilename, imageFilenames)
+  ]);
+  record.channels.telegram = telegram.ok ? { status: 'sent' } : { status: 'failed', error: telegram.error };
+  record.channels.threads = threads;
+  record.channels.webhook = webhook;
+  record.completedAt = new Date().toISOString();
+  saveSocialHistory();
+  console.log(`[social] Distribution complete: ${record.id}`);
+  return record;
 }
 
 function findExistingPostByTitle(title) {
@@ -1162,7 +1292,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
       console.log('[upload] Deploying post + all three images together...');
       deployBlog(group.blogSlug, generatedDeployPaths(group.blogSlug, group.postFilename, group.imageFilenames));
-      notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${group.title}\n이미지: ${expectedCount}장 검수 완료\n기사 보기: ${getPublishedPostUrl(group.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+      void distributePublishedPost({ title: group.title, postFilename: group.postFilename, imageFilenames: group.imageFilenames });
       return res.json({ success: true, message: 'Post + all three images saved and deployed' });
     }
 
@@ -1183,8 +1313,8 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     console.log(`[upload] Deploying post + image together...`);
     deployBlog(job.blogSlug, generatedDeployPaths(job.blogSlug, job.postFilename, [job.imageFilename]));
 
-    // 5. Telegram notification
-    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n카테고리: ${job.blogSlug}\n기사 보기: ${getPublishedPostUrl(job.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+    // 5. Distribution notification
+    void distributePublishedPost({ title: job.title, postFilename: job.postFilename, imageFilenames: [job.imageFilename] });
 
     res.json({ success: true, message: 'Post + image saved and deployed' });
   } catch (err) {
@@ -1463,7 +1593,19 @@ app.get('/api/dashboard', (req, res) => {
   res.json({
     health: { status: 'ok', queue: textQueue.length + queue.length, completed: completed.length },
     cron: { running: schedulerRunning },
-    counts: { pendingTexts: pendingTexts.length, pendingImages: pending.length },
+    counts: {
+      pendingTexts: pendingTexts.length,
+      pendingImages: pending.length,
+      socialSent: socialHistory.reduce((count, item) => count + Object.values(item.channels || {}).filter(channel => channel.status === 'sent').length, 0)
+    },
+    social: {
+      configured: {
+        telegram: Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID),
+        threads: Boolean(process.env.THREADS_USER_ID && process.env.THREADS_ACCESS_TOKEN),
+        webhook: Boolean(process.env.SOCIAL_WEBHOOK_URL)
+      },
+      latest: socialHistory.at(-1) || null
+    },
     currentRun: latest ? {
       status: latestStatus === 'completed' ? 'completed' : latestStatus === 'failed' ? 'failed' : 'running',
       phase: latestStatus === 'completed' ? 'published' : latestStatus === 'failed' ? 'generation-error' : latest.type === 'text' ? 'waiting-extension-text' : 'waiting-extension-image',
@@ -1488,6 +1630,37 @@ app.get('/api/dashboard', (req, res) => {
       ...completed.slice(-15).map(j => ({ time: j.completedAt || j.createdAt, type: 'published', message: `발행 완료: ${j.title}` }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 20)
   });
+});
+
+app.get('/api/social/status', requireAdmin, (req, res) => {
+  res.json({
+    configured: {
+      telegram: Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID),
+      threads: Boolean(process.env.THREADS_USER_ID && process.env.THREADS_ACCESS_TOKEN),
+      webhook: Boolean(process.env.SOCIAL_WEBHOOK_URL)
+    },
+    history: socialHistory.slice(-20).reverse()
+  });
+});
+
+app.post('/api/social/distribute', requireAdmin, async (req, res) => {
+  try {
+    const filename = String(req.body?.filename || '').replace(/[\\/]/g, '');
+    if (!filename.endsWith('.md')) return res.status(400).json({ error: 'filename required' });
+    const postPath = safePostPath(filename);
+    if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
+    const meta = parseFrontmatter(readFileSync(postPath, 'utf-8'));
+    const imageName = String(meta.image || '').replace(/^\/images\//, '');
+    const images = imageName ? [imageName] : [];
+    const record = await distributePublishedPost({
+      title: meta.title || filename.replace(/\.md$/, ''),
+      postFilename: filename,
+      imageFilenames: images
+    });
+    res.json({ success: true, record });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/admin/posts', requireAdmin, (req, res) => {
@@ -1645,8 +1818,8 @@ async function generateImageViaCDP(job) {
     // Deploy
     deployBlog(job.blogSlug, generatedDeployPaths(job.blogSlug, job.postFilename, [job.imageFilename]));
 
-    // Notify
-    notifyTelegram(`📝 *새 블로그 발행*\n\n제목: ${job.title}\n이미지: ✅ ChatGPT 생성\n기사 보기: ${getPublishedPostUrl(job.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+    // Distribute
+    void distributePublishedPost({ title: job.title, postFilename: job.postFilename, imageFilenames: [job.imageFilename] });
 
     return true;
 
