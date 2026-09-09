@@ -5,6 +5,20 @@ export function isOfficialSource(url) {
   catch { return false; }
 }
 
+function normalizedSourceKey(value) {
+  try {
+    const url = new URL(String(value).replace(/[)>.,]+$/, ''));
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    return `${url.hostname.toLowerCase()}${path}`;
+  } catch {
+    return '';
+  }
+}
+
+function extractUrls(content = '') {
+  return String(content).match(/https?:\/\/[^\s<>'"\]]+/g) || [];
+}
+
 export function extractResearch(html, limit = 7000) {
   const $ = load(html);
   $('script, style, nav, header, footer, aside, form, noscript').remove();
@@ -26,7 +40,9 @@ export function validateOfficialCoverage({ category, content, sources = [], year
   if (!['policy', 'benefits'].includes(category)) return { ok: true };
   const official = sources.filter(isOfficialSource);
   if (!official.length) return { ok: false, reason: '확인한 공식 기관 출처가 없어 발행을 보류합니다.' };
-  if (!official.some(url => content.includes(url))) return { ok: false, reason: '본문에 검증한 공식 출처 링크가 없습니다.' };
+  const officialKeys = new Set(official.map(normalizedSourceKey).filter(Boolean));
+  const linkedKeys = new Set(extractUrls(content).filter(isOfficialSource).map(normalizedSourceKey).filter(Boolean));
+  if (![...linkedKeys].some(key => officialKeys.has(key))) return { ok: false, reason: '본문에 검증한 공식 출처 링크가 없습니다.' };
   if (category === 'benefits') {
     if (!content.includes(String(year))) return { ok: false, reason: '현재 적용 연도가 본문에 없습니다.' };
     if (!/신청/.test(content) || !/대상|자격/.test(content) || !/기간|상시|마감/.test(content)) return { ok: false, reason: '신청 동선·대상·기간을 확인해야 합니다.' };

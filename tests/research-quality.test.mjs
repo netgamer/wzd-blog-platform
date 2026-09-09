@@ -12,6 +12,11 @@ test('benefits with missing official material cannot publish', () => {
   assert.equal(validateOfficialCoverage({ category: 'benefits', content: body, sources: [] }).ok, false);
   assert.equal(validateOfficialCoverage({ category: 'benefits', content: body, sources: [official], year: 2026 }).ok, true);
 });
+test('official coverage accepts tracking parameters on the same verified path', () => {
+  const source = 'https://www.korea.kr/news/policyNewsView.do?newsId=1';
+  const content = '2026년 신청 대상과 기간, 지원 금액 30만원. [공식 출처](https://www.korea.kr/news/policyNewsView.do?newsId=1&utm_source=chatgpt.com)';
+  assert.equal(validateOfficialCoverage({ category: 'benefits', content, sources: [source], year: 2026 }).ok, true);
+});
 test('placeholder amounts and past-year-only content are blocked', () => {
   assert.equal(validateOfficialCoverage({ category: 'benefits', content: body + '\n지원 금액은 확인 불가', sources: [official], year: 2026 }).ok, false);
   assert.equal(validateOfficialCoverage({ category: 'benefits', content: body.replace('2026', '2024'), sources: [official], year: 2026 }).ok, false);
