@@ -54,6 +54,10 @@ async function variants(source) {
 
 let count = 0;
 for await (const path of files(output)) {
+  const relativePath = relative(output, path).replaceAll('\\', '/');
+  // Keep routine deploys fast: optimize the homepage and current-month articles.
+  // Older articles get responsive assets when they are refreshed into this window.
+  if (relativePath !== 'index.html' && !/^posts\/2026-09-[^/]+\/index\.html$/.test(relativePath)) continue;
   const html = await readFile(path, 'utf8');
   const $ = load(html);
   let changed = false;
@@ -83,7 +87,7 @@ for (const path of [join(output, 'posts', 'index.json'), join(output, 'index.jso
   let posts;
   try { posts = JSON.parse(await readFile(path, 'utf8')); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
   if (!Array.isArray(posts)) continue;
-  for (const post of posts) {
+  for (const post of posts.slice(0, 100)) {
     const source = localPath(post.image);
     if (!source) continue;
     try { const image = await variants(source); post.image = (image.items.find(item => item.width >= 640) || image.items.at(-1)).url; }
