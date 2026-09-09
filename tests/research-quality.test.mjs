@@ -21,6 +21,10 @@ test('placeholder amounts and past-year-only content are blocked', () => {
   assert.equal(validateOfficialCoverage({ category: 'benefits', content: body + '\n지원 금액은 확인 불가', sources: [official], year: 2026 }).ok, false);
   assert.equal(validateOfficialCoverage({ category: 'benefits', content: body.replace('2026', '2024'), sources: [official], year: 2026 }).ok, false);
 });
+test('a caveat about an unknown office address does not block verified core fields', () => {
+  const content = `${body}\n방문 신청은 가능하지만 행정복지센터의 개별 주소나 운영시간은 제공 자료에 명시돼 있지 않습니다.`;
+  assert.equal(validateOfficialCoverage({ category: 'benefits', content, sources: [official], year: 2026 }).ok, true);
+});
 test('research preserves late eligibility tables and drops navigation', () => {
   const text = extractResearch('<nav>MENU</nav><main><p>' + '소개 '.repeat(1200) + '</p><table><tr><td>2026년 지원액</td><td>600만원</td></tr></table></main>');
   assert.ok(text.includes('2026년 지원액 | 600만원')); assert.ok(!text.includes('MENU'));

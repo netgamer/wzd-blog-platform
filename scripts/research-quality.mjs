@@ -19,6 +19,14 @@ function extractUrls(content = '') {
   return String(content).match(/https?:\/\/[^\s<>'"\]]+/g) || [];
 }
 
+function hasUnresolvedCoreField(content = '') {
+  return String(content).split(/\r?\n/).some(rawLine => {
+    const line = rawLine.replace(/[*_`|>#-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!line || line.length > 120) return false;
+    return /(?:지원\s*금액|지원액|신청\s*기간|신청\s*방법|신청\s*대상|자격)\s*(?:은|는|:)?[^.!?]{0,45}(?:확인\s*불가|알\s*수\s*없|확인되지\s*않|자료.{0,12}없)/.test(line);
+  });
+}
+
 export function extractResearch(html, limit = 7000) {
   const $ = load(html);
   $('script, style, nav, header, footer, aside, form, noscript').remove();
@@ -46,7 +54,7 @@ export function validateOfficialCoverage({ category, content, sources = [], year
   if (category === 'benefits') {
     if (!content.includes(String(year))) return { ok: false, reason: '현재 적용 연도가 본문에 없습니다.' };
     if (!/신청/.test(content) || !/대상|자격/.test(content) || !/기간|상시|마감/.test(content)) return { ok: false, reason: '신청 동선·대상·기간을 확인해야 합니다.' };
-    if (/(?:금액|지원액|신청\s*기간|신청\s*방법|대상)[^\n]{0,100}(?:확인\s*불가|알\s*수\s*없|확인되지\s*않|자료.{0,20}없)/.test(content)) return { ok: false, reason: '핵심 신청 정보가 확인 불가 상태입니다.' };
+    if (hasUnresolvedCoreField(content)) return { ok: false, reason: '핵심 신청 정보가 확인 불가 상태입니다.' };
     if (!/\d[\d,.]*\s*(?:만\s*)?원|전액|면제|현물/.test(content)) return { ok: false, reason: '지원 금액 또는 현물 혜택 기준이 없습니다.' };
   }
   return { ok: true };
