@@ -1,10 +1,5 @@
 {{ define "main" }}
-{{ $posts := where .Site.RegularPages "Section" "posts" }}
-{{ $validPosts := slice }}
-{{ range $posts.ByDate.Reverse }}
-  {{ $badTitle := or (findRE "\\?\\?+" .Title) (findRE "contentreference|ContentReference" .Title) }}
-  {{ if not $badTitle }}{{ $validPosts = $validPosts | append . }}{{ end }}
-{{ end }}
+{{ $validPosts := .Paginator.Pages }}
 
 <section class="home-newsdesk" aria-label="주요 뉴스">
   {{ range first 1 $validPosts }}
@@ -72,78 +67,7 @@
   </div>
 </section>
 
-<section class="home-more">
-  <div class="section-heading">
-    <h2>더 많은 기사</h2>
-    <span>전체 뉴스</span>
-  </div>
-  <div class="post-list newsroom-list" id="more-posts">
-    {{ range after 14 $validPosts }}
-    <article class="post-card lazy-post" style="display:none">
-      {{ if .Params.image }}
-      <a href="{{ .Permalink }}" class="post-card-image">
-        <img data-src="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}" alt="{{ .Title }}" loading="lazy">
-      </a>
-      {{ end }}
-      <div class="post-card-content">
-        <h2 class="post-card-title"><a href="{{ .Permalink }}">{{ .Title }}</a></h2>
-        <p class="post-card-excerpt">{{ .Description | default (.Summary | plainify | truncate 150) }}</p>
-        <div class="post-card-meta">
-          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006.01.02" }}</time>
-          {{ range .Params.categories }}<span class="category">{{ . }}</span>{{ end }}
-        </div>
-      </div>
-    </article>
-    {{ end }}
-  </div>
-  <div id="load-trigger" style="height:1px"></div>
-  <div id="load-spinner" style="text-align:center;padding:2rem;display:none;color:#999">기사를 불러오는 중...</div>
-  <div id="load-end" style="text-align:center;padding:2rem;display:none;color:#ccc">모든 기사를 불러왔습니다</div>
-</section>
-
-<script>
-(function(){
-  var posts = document.querySelectorAll('.lazy-post');
-  var shown = 0;
-  var batch = 6;
-  var loading = false;
-
-  function showMore() {
-    if (loading) return;
-    var remaining = posts.length - shown;
-    if (remaining <= 0) {
-      document.getElementById('load-end').style.display = 'block';
-      document.getElementById('load-spinner').style.display = 'none';
-      return;
-    }
-    loading = true;
-    document.getElementById('load-spinner').style.display = 'block';
-
-    setTimeout(function() {
-      var end = Math.min(shown + batch, posts.length);
-      for (var i = shown; i < end; i++) {
-        posts[i].style.display = '';
-        var img = posts[i].querySelector('img[data-src]');
-        if (img) {
-          img.src = img.getAttribute('data-src');
-          img.removeAttribute('data-src');
-        }
-      }
-      shown = end;
-      loading = false;
-      document.getElementById('load-spinner').style.display = 'none';
-      if (shown >= posts.length) {
-        document.getElementById('load-end').style.display = 'block';
-      }
-    }, 300);
-  }
-
-  var observer = new IntersectionObserver(function(entries) {
-    if (entries[0].isIntersecting) showMore();
-  }, { rootMargin: '400px' });
-
-  var trigger = document.getElementById('load-trigger');
-  if (trigger && posts.length > 0) observer.observe(trigger);
-})();
-</script>
+<nav class="home-pagination" aria-label="기사 페이지">
+  {{ template "_internal/pagination.html" . }}
+</nav>
 {{ end }}

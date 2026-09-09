@@ -6,6 +6,13 @@
   {{ $displayTitle := .Site.Params.displayTitle | default .Site.Title }}
   {{ $titleSuffix := .Site.Params.titleSuffix | default .Site.Params.description }}
   {{ $pageTitle := cond .IsHome $displayTitle .Title }}
+  {{ $canonical := .Permalink }}
+  {{ if or .IsHome (and .IsNode (ne .Kind "taxonomy")) }}
+    {{ $pages := .Pages.ByDate.Reverse }}
+    {{ if .IsHome }}{{ $pages = (where .Site.RegularPages "Section" "posts").ByDate.Reverse }}{{ end }}
+    {{ $pager := .Paginate (partial "eligible-pages.html" $pages) 14 }}
+    {{ $canonical = $pager.URL | absURL }}
+  {{ end }}
   <title>{{ if .IsHome }}{{ $displayTitle }} | {{ $titleSuffix }}{{ else }}{{ .Title }} | {{ $displayTitle }}{{ end }}</title>
   <meta name="application-name" content="{{ $displayTitle }}">
   <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
@@ -24,7 +31,7 @@
   {{ with .Params.categories }}<meta property="article:section" content="{{ index . 0 }}">{{ end }}
   {{ end }}
   {{ with .Site.Params.naverVerification }}<meta name="naver-site-verification" content="{{ . }}">{{ end }}
-  <link rel="canonical" href="{{ .Permalink }}">
+  <link rel="canonical" href="{{ $canonical }}">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
@@ -34,7 +41,7 @@
   <meta property="og:title" content="{{ $pageTitle }}">
   <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <meta property="og:type" content="{{ if $isArticlePage }}article{{ else }}website{{ end }}">
-  <meta property="og:url" content="{{ .Permalink }}">
+  <meta property="og:url" content="{{ $canonical }}">
   <meta property="og:site_name" content="{{ $displayTitle }}">
   {{ if .Params.image }}
   <meta property="og:image" content="{{ printf "%s%s" .Site.BaseURL (strings.TrimPrefix "/" .Params.image) }}">
@@ -97,6 +104,8 @@
     <div class="container nav-row nav-row-clean">
       <nav class="site-nav" aria-label="주요 메뉴">
         <a href="{{ "" | relURL }}">최신뉴스</a>
+        <a href="{{ "categories/정책뉴스/" | relURL }}">정책·뉴스</a>
+        <a href="{{ "categories/지원금혜택/" | relURL }}">지원금·혜택</a>
         <a href="{{ "categories/경제/" | relURL }}">경제</a>
         <a href="{{ "categories/산업/" | relURL }}">산업</a>
         <a href="{{ "categories/사회/" | relURL }}">사회</a>
@@ -105,12 +114,14 @@
         <a href="{{ "categories/건강/" | relURL }}">건강</a>
         <a href="{{ "categories/연예/" | relURL }}">연예</a>
         <a href="{{ "categories/스포츠/" | relURL }}">스포츠</a>
-        <a href="{{ "categories/IT/" | relURL }}">IT</a>
+        <a href="{{ "categories/it/" | relURL }}">IT</a>
         <a href="{{ "jebo/" | relURL }}" class="nav-alert">제보</a>
       </nav>
     </div>
     <nav class="mobile-menu" aria-label="모바일 메뉴">
       <a href="{{ "" | relURL }}">최신뉴스</a>
+      <a href="{{ "categories/정책뉴스/" | relURL }}">정책·뉴스</a>
+      <a href="{{ "categories/지원금혜택/" | relURL }}">지원금·혜택</a>
       <a href="{{ "categories/경제/" | relURL }}">경제</a>
       <a href="{{ "categories/산업/" | relURL }}">산업</a>
       <a href="{{ "categories/사회/" | relURL }}">사회</a>
@@ -119,7 +130,7 @@
       <a href="{{ "categories/건강/" | relURL }}">건강</a>
       <a href="{{ "categories/연예/" | relURL }}">연예</a>
       <a href="{{ "categories/스포츠/" | relURL }}">스포츠</a>
-      <a href="{{ "categories/IT/" | relURL }}">IT</a>
+      <a href="{{ "categories/it/" | relURL }}">IT</a>
       <a href="{{ "jebo/" | relURL }}">제보</a>
     </nav>
   </header>
@@ -133,13 +144,9 @@
       <aside class="sidebar">
         <div class="sidebar-sticky">
           <div class="hot-news">
-            <h3 class="hot-news-title">핫뉴스</h3>
+            <h3 class="hot-news-title">최근 기사</h3>
             {{ $pages := where .Site.RegularPages "Section" "posts" }}
-            {{ $validPages := slice }}
-            {{ range $pages.ByDate.Reverse }}
-              {{ $badTitle := or (findRE "\\?\\?+" .Title) (findRE "contentreference|ContentReference" .Title) }}
-              {{ if not $badTitle }}{{ $validPages = $validPages | append . }}{{ end }}
-            {{ end }}
+            {{ $validPages := partial "eligible-pages.html" $pages.ByDate.Reverse }}
             {{ range first 8 $validPages }}
             <a href="{{ .RelPermalink }}" class="hot-item">
               {{ if .Params.image }}
@@ -169,7 +176,7 @@
         <a href="{{ "categories/건강/" | relURL }}">건강</a>
         <a href="{{ "categories/연예/" | relURL }}">연예</a>
         <a href="{{ "categories/스포츠/" | relURL }}">스포츠</a>
-        <a href="{{ "categories/IT/" | relURL }}">IT</a>
+        <a href="{{ "categories/it/" | relURL }}">IT</a>
         <a href="{{ "jebo/" | relURL }}">제보</a>
       </div>
       <p>&copy; {{ now.Year }} {{ .Site.Title }}. 이 글은 참고용이며, 정확한 정보는 관련 기관에 확인하세요.</p>

@@ -1,4 +1,4 @@
-{{ $related := .Site.RegularPages.Related . | first 4 }}
+{{ $related := partial "eligible-pages.html" (.Site.RegularPages.Related .) | first 4 }}
 {{ if $related }}
   <section class="related-posts" id="related-articles">
   <h2>이어서 볼 기사</h2>

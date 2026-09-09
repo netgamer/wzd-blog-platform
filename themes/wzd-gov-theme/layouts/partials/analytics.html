@@ -1,74 +1,62 @@
 {{ if .Site.Params.gaId }}
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id={{ .Site.Params.gaId }}"></script>
 <script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var internal = false;
+  try {
+    if (params.get('internal') === '1') localStorage.setItem('wzd_internal', '1');
+    if (params.get('internal') === '0') localStorage.removeItem('wzd_internal');
+    internal = localStorage.getItem('wzd_internal') === '1';
+  } catch (_) {}
+  window.wzdTrack = function () {};
+  if (location.hostname !== 'news.wzd.kr' || navigator.webdriver || internal) return;
   window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  var script = document.createElement('script');
+  script.async = true;
+  script.src = 'https://www.googletagmanager.com/gtag/js?id={{ .Site.Params.gaId }}';
+  document.head.appendChild(script);
   gtag('js', new Date());
   gtag('config', '{{ .Site.Params.gaId }}');
-
+  window.wzdTrack = function (name, values) { gtag('event', name, values || {}); };
   document.addEventListener('DOMContentLoaded', function () {
-    function track(name, params) {
-      if (typeof window.gtag === 'function') window.gtag('event', name, params || {});
-    }
-
-    {{ if and .IsPage (eq .Section "posts") }}
-    var sentScroll75 = false;
-    function trackReadingDepth() {
-      if (sentScroll75) return;
-      var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      if (maxScroll > 0 && window.scrollY / maxScroll >= 0.75) {
-        sentScroll75 = true;
-        track('article_scroll_75', {
-          article_title: {{ .Title | jsonify | safeJS }},
-          article_path: window.location.pathname
-        });
+    var body = document.querySelector('[itemprop="articleBody"]');
+    var visibleSeconds = 0;
+    var depthSent = false;
+    var timer = setInterval(function () {
+      if (document.visibilityState === 'visible') visibleSeconds++;
+      if (!body || depthSent) { clearInterval(timer); return; }
+      var rect = body.getBoundingClientRect();
+      if (visibleSeconds >= 10 && rect.height > 0 && (innerHeight - rect.top) / rect.height >= 0.75 && rect.bottom > 0) {
+        depthSent = true;
+        wzdTrack('article_scroll_75', { article_path: location.pathname, visible_seconds: visibleSeconds });
       }
-    }
-    window.addEventListener('scroll', trackReadingDepth, { passive: true });
-    {{ end }}
-
+    }, 1000);
     document.addEventListener('click', function (event) {
-      var related = event.target.closest('.related-card');
-      if (related) {
-        track('related_article_click', {
-          link_url: related.href,
-          link_text: (related.querySelector('.related-title') || related).textContent.trim()
-        });
+      var target = event.target.closest('a, button');
+      if (!target) return;
+      var related = target.closest('.related-card');
+      if (related) wzdTrack('related_article_click', { link_url: related.href });
+      if (target.matches('[data-affiliate-link]')) wzdTrack('affiliate_click', { link_url: target.href, placement: target.dataset.affiliatePlacement || 'unknown' });
+      if (target.dataset.shareChannel) wzdTrack('article_share_intent', { method: target.dataset.shareChannel, article_path: location.pathname });
+      if (!target.href) return;
+      var url = new URL(target.href, location.href);
+      if (target.closest('[itemprop="articleBody"]') && /(^|\.)(go\.kr|korea\.kr)$/.test(url.hostname)) {
+        wzdTrack('official_link_click', { link_url: url.href, article_path: location.pathname });
       }
-
-      var affiliate = event.target.closest('a[data-affiliate-link]');
-      if (affiliate) {
-        track('affiliate_click', {
-          link_url: affiliate.href,
-          placement: affiliate.dataset.affiliatePlacement || 'unknown'
-        });
-      }
-
-      var share = event.target.closest('[data-share-channel]');
-      if (share) {
-        track('article_share', {
-          method: share.dataset.shareChannel,
-          article_path: window.location.pathname
-        });
+      if (url.pathname.endsWith('.xml') && url.origin === location.origin) {
+        wzdTrack('subscription_intent', { method: 'rss', link_url: url.href });
       }
     });
-
     document.querySelectorAll('.coupang-partners-ad').forEach(function (ad) {
-      var viewed = false;
-      if ('IntersectionObserver' in window) {
-        new IntersectionObserver(function (entries, observer) {
-          if (!viewed && entries.some(function (entry) { return entry.isIntersecting && entry.intersectionRatio >= 0.5; })) {
-            viewed = true;
-            track('affiliate_ad_view', { placement: 'article_body' });
-            observer.disconnect();
-          }
-        }, { threshold: [0.5] }).observe(ad);
-      }
-      ad.addEventListener('pointerdown', function () {
-        track('affiliate_ad_interaction', { placement: 'article_body' });
-      }, { once: true });
+      if ('IntersectionObserver' in window) new IntersectionObserver(function (entries, observer) {
+        if (entries.some(function (entry) { return entry.isIntersecting && entry.intersectionRatio >= 0.5; })) {
+          wzdTrack('affiliate_ad_view', { placement: 'article_body' });
+          observer.disconnect();
+        }
+      }, { threshold: [0.5] }).observe(ad);
     });
   });
+})();
 </script>
 {{ end }}

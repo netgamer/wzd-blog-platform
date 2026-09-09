@@ -4,6 +4,9 @@
   "description": "Automated Korean government policy blog platform",
   "type": "module",
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "optimize": "node scripts/optimize-site.mjs",
+    "check:site": "node scripts/check-built-site.mjs",
     "generate": "node scripts/generate-post.mjs",
     "build": "bash scripts/build.sh",
     "build:tax": "bash scripts/build.sh tax-yearend",
@@ -23,9 +26,11 @@
   },
   "homepage": "https://github.com/netgamer/wzd-blog-platform#readme",
   "dependencies": {
+    "cheerio": "1.1.2",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "multer": "^2.1.1",
-    "puppeteer": "^24.42.0"
+    "puppeteer": "^24.42.0",
+    "sharp": "0.35.4"
   }
 }

@@ -81,7 +81,7 @@ table.posts tr:hover td{background:#f0f7ff}
       <div class="card"><div class="card-label">서버 상태</div><div class="card-value" id="d-status">-</div><div class="card-sub" id="d-cron"></div></div>
       <div class="card"><div class="card-label">대기 중 텍스트</div><div class="card-value" id="d-text">0</div><div class="card-sub">Extension 처리 대기</div></div>
       <div class="card"><div class="card-label">대기 중 이미지</div><div class="card-value" id="d-img">0</div><div class="card-sub">이미지 생성 대기</div></div>
-      <div class="card"><div class="card-label">누적 완료</div><div class="card-value" id="d-done">0</div><div class="card-sub">서버 재시작 이후</div></div>
+      <div class="card"><div class="card-label">발행 확인 완료</div><div class="card-value" id="d-done">0</div><div class="card-sub">공개 페이지 검증 · 재시작 시 보존</div></div>
       <div class="card"><div class="card-label">소셜 전송</div><div class="card-value" id="d-social">0</div><div class="card-sub" id="d-social-config">채널 확인 중</div></div>
     </div>
     <div class="actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -203,6 +203,7 @@ function refreshDash(){
       '<tr><td>제목</td><td>'+(r2.title||'-')+'</td></tr>'+
       '<tr><td>리서치</td><td>'+(r2.researchSourceCount||0)+'개 출처</td></tr>'+
       '<tr><td>포스트</td><td>'+(r2.postFilename||'-')+'</td></tr>'+
+      (r2.url && r2.phase==='published'?'<tr><td>공개 URL</td><td><a target="_blank" rel="noopener" href="'+r2.url+'">기사 열기</a></td></tr>':'')+
       '<tr><td>시작</td><td>'+(r2.startedAt?new Date(r2.startedAt).toLocaleString('ko-KR'):'-')+'</td></tr>'+
       (r2.error?'<tr><td>오류</td><td style="color:#dc2626">'+r2.error+'</td></tr>':'');
     var evts=d.recentEvents||[];
@@ -241,7 +242,9 @@ function deleteSelected(){
 }
 
 function deployNow(){
-  fetch(API+'/api/admin/deploy',{method:'POST',headers:hdr()}).then(function(r){return r.json()}).then(function(){showMsg('배포 시작됨',true)}).catch(function(e){showMsg(e.message,false)});
+  var selected=Array.from(document.querySelectorAll('#tbody .cb:checked'));
+  if(selected.length!==1)return showMsg('배포할 글을 하나 선택하세요',false);
+  fetch(API+'/api/admin/deploy',{method:'POST',headers:hdr(),body:JSON.stringify({filename:selected[0].dataset.file})}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error);return d;})}).then(function(){showMsg('배포 대기열에 등록됨. 공개 확인 후 완료됩니다.',true)}).catch(function(e){showMsg(e.message,false)});
 }
 
 function runNow(){

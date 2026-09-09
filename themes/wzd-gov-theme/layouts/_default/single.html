@@ -125,7 +125,7 @@ document.querySelectorAll('.post-mid-image img').forEach(function(img){
   img.style.cursor='pointer';
   img.addEventListener('click',function(){
     var o=document.getElementById('img-overlay');
-    document.getElementById('img-overlay-src').src=this.src;
+    document.getElementById('img-overlay-src').src=this.dataset.originalSrc || this.src;
     o.style.display='flex';
   });
 });
@@ -134,6 +134,7 @@ document.querySelectorAll('.share-copy').forEach(function(button){
     var original=this.textContent;
     navigator.clipboard.writeText(this.dataset.shareUrl).then(()=>{
       this.textContent='복사됨';
+      if (window.wzdTrack) window.wzdTrack('article_link_copy', { article_path: location.pathname });
       setTimeout(()=>{this.textContent=original},1500);
     }).catch(()=>{});
   });
@@ -141,7 +142,9 @@ document.querySelectorAll('.share-copy').forEach(function(button){
 document.querySelectorAll('.share-native').forEach(function(button){
   if(!navigator.share){button.hidden=true;return;}
   button.addEventListener('click',function(){
-    navigator.share({title:this.dataset.shareTitle,url:this.dataset.shareUrl+'?utm_source=native_share&utm_medium=share&utm_campaign=reader_share'}).catch(()=>{});
+    navigator.share({title:this.dataset.shareTitle,url:this.dataset.shareUrl+'?utm_source=native_share&utm_medium=share&utm_campaign=reader_share'}).then(()=>{
+      if (window.wzdTrack) window.wzdTrack('article_share_completed', { method: 'native', article_path: location.pathname });
+    }).catch(()=>{});
   });
 });
 </script>

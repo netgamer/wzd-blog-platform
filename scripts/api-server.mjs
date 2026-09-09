@@ -15,11 +15,14 @@ import multer from 'multer';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { execSync, execFile } from 'child_process';
+import { promisify } from 'node:util';
+import { createPublisher, digest, readState, writeState, telegramText, verifyPublication } from './publication.mjs';
 import { stripAssistantPreamble, validateArticleContent } from './content-quality.mjs';
+import { extractResearch, isOfficialSource, validateOfficialCoverage } from './research-quality.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = '\\\\wsl$\\Ubuntu\\home\\netgamer\\.openclaw\\workspace\\code\\wzd-blog-platform';
+const PROJECT_ROOT = dirname(__dirname);
 
 // --- Telegram Notification ---
 const TELEGRAM_BOT_TOKEN = '8714352426:AAEwgv61r2Rb9GM2NqejO14IclpDyBb8MU8';
@@ -27,10 +30,10 @@ const TELEGRAM_CHAT_ID = '876899791';
 
 async function notifyTelegram(message) {
   try {
-    // Remove markdown formatting, use plain text for reliability
-    const cleanMsg = message.replace(/\*/g, '').replace(/_/g, '');
+    const cleanMsg = telegramText(message);
     const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
+      signal: AbortSignal.timeout(20000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: TELEGRAM_CHAT_ID,
@@ -175,7 +178,7 @@ async function submitIndexNow(postFilename) {
     });
     if (![200, 202].includes(response.status)) throw new Error(`IndexNow ${response.status}`);
     console.log(`[indexnow] Submitted: ${url} (${response.status})`);
-    return { status: 'sent', responseCode: response.status };
+    return { status: response.status === 202 ? 'key-validation-pending' : 'submitted', responseCode: response.status };
   } catch (error) {
     console.warn('[indexnow] Submission failed:', error.message);
     return { status: 'failed', error: error.message };
@@ -311,11 +314,77 @@ function validateNewsImage(buffer) {
 }
 
 // --- Queue ---
-const queue = [];     // pending image jobs
-const textQueue = []; // pending ChatGPT text jobs
-const completed = []; // completed jobs
-const failed = [];    // failed jobs that must not be published
-const imageGroups = new Map();
+const runtimePath = join(PROJECT_ROOT, '.runtime', 'server-state.json');
+const runtime = readState(runtimePath, {});
+const queue = runtime.queue || [];
+const textQueue = runtime.textQueue || [];
+const completed = runtime.completed || [];
+const failed = runtime.failed || [];
+const imageGroups = new Map((runtime.imageGroups || []).map(([id, group]) => [id, { ...group, uploadedRoles: new Set(group.uploadedRoles) }]));
+function saveRuntime() {
+  writeState(runtimePath, {
+    schedulerRunning, queue, textQueue, completed, failed,
+    imageGroups: [...imageGroups].map(([id, group]) => [id, { ...group, uploadedRoles: [...group.uploadedRoles] }])
+  });
+}
+app.use((req, res, next) => {
+  if (req.method === 'POST') res.on('finish', () => {
+    try { saveRuntime(); } catch (error) { console.error('[state]', error.message); }
+  });
+  next();
+});
+let generationPreparing = false;
+app.use(['/api/generate', '/api/refresh'], (req, res, next) => {
+  if (req.method !== 'POST') return next();
+  if (generationPreparing || textQueue.length || queue.length) return res.status(409).json({ error: 'Existing generation is still pending; inspect the dashboard before retrying' });
+  generationPreparing = true;
+  res.on('finish', () => { generationPreparing = false; });
+  next();
+});
+const runFile = promisify(execFile);
+async function gitCommand(args) {
+  const command = process.platform === 'win32' ? 'wsl.exe' : 'git';
+  const parameters = process.platform === 'win32'
+    ? ['-d', 'Ubuntu', '--', 'git', '-C', PROJECT_ROOT_WSL, ...args]
+    : ['-C', PROJECT_ROOT, ...args];
+  return (await runFile(command, parameters, { timeout: 120000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })).stdout.trim();
+}
+const publisher = createPublisher({
+  statePath: join(PROJECT_ROOT, '.runtime', 'publications.json'),
+  deploy: async job => {
+    if (!job.paths?.length || job.paths.some(path => !/^sites\/tax-yearend\/(content\/posts|static\/images)\//.test(path) || path.includes('..'))) throw new Error('Explicit article/image paths required');
+    await gitCommand(['add', '--', ...job.paths]);
+    const changed = await gitCommand(['diff', 'HEAD', '--name-only', '--', ...job.paths]);
+    if (changed) await gitCommand(['commit', '--only', '-m', `post: ${job.title || 'reviewed update'}`, '--', ...job.paths]);
+    const revision = await gitCommand(['rev-parse', 'HEAD']);
+    await gitCommand(['push', 'origin', 'HEAD:main']);
+    return revision;
+  },
+  onPublished: async job => {
+    if (job.deleted) return;
+    if (!completed.some(item => item.id === job.id)) completed.push({ ...job, status: 'completed' });
+    saveRuntime();
+    if (job.postFilename) {
+      const record = await distributePublishedPost(job);
+      if (record?.channels?.telegram?.status === 'failed') throw new Error(record.channels.telegram.error || 'Telegram failed');
+    }
+  }
+});
+function queuePublication(job, imageFilenames = []) {
+  const slug = job.blogSlug || 'tax-yearend';
+  const post = readFileSync(join(PROJECT_ROOT, 'sites', slug, 'content', 'posts', job.postFilename), 'utf8');
+  const filenames = [...new Set([...imageFilenames, ...[...post.matchAll(/(?:src="|image:\s*")\/images\/([^"\n]+)"/g)].map(match => match[1])])];
+  const assets = filenames.map(filename => {
+    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) throw new Error('Invalid image path');
+    return { url: `/images/${filename}`, hash: digest(readFileSync(join(PROJECT_ROOT, 'sites', slug, 'static', 'images', filename))) };
+  });
+  if (assets.length < 3) throw new Error('Thumbnail, infographic and comic are required before publication');
+  return publisher.enqueue({
+    ...job, id: job.id || job.groupId || `publish-${Date.now()}`, postContent: undefined, textPrompt: undefined,
+    url: getPublishedPostUrl(job.postFilename), assets, imageFilenames: filenames,
+    paths: generatedDeployPaths(slug, job.postFilename, filenames)
+  });
+}
 
 function removeFromQueue(job) {
   const idx = queue.findIndex(item => item.id === job.id);
@@ -461,7 +530,7 @@ async function searchWeb(query, numResults = 5) {
   console.log(`[research] Searching: ${query}`);
   try {
     // DuckDuckGo HTML search (no API key needed)
-    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' 신청 방법 조건 2026')}`;
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
       signal: AbortSignal.timeout(10000)
@@ -519,14 +588,8 @@ async function fetchPageContent(url) {
     });
     const html = await res.text();
 
-    // Strip HTML tags, get text content
-    const text = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 3000); // limit per page
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = extractResearch(html);
 
     return { url, text, success: true };
   } catch (e) {
@@ -538,22 +601,24 @@ async function researchTopic(topic, category) {
   console.log(`[research] Researching: ${topic}`);
 
   // Search for related articles
-  const searchSuffix = CATEGORIES[category]?.searchSuffix || '2026 총정리';
+  const year = new Date().getFullYear();
+  const searchSuffix = (CATEGORIES[category]?.searchSuffix || '공식 안내').replace(/2026/g, String(year));
+  const officialUrls = ['benefits', 'policy'].includes(category) ? await searchWeb(`${topic} ${year} site:go.kr`, 4) : [];
   const focusedUrls = await searchWeb(`${topic} ${searchSuffix}`);
   const broadUrls = focusedUrls.length >= 3 ? [] : await searchWeb(topic);
-  const urls = [...new Set([...focusedUrls, ...broadUrls])].slice(0, 5);
+  const urls = [...new Set([...officialUrls, ...focusedUrls, ...broadUrls])].slice(0, 6);
 
   // Fetch content from top results
   const results = await Promise.all(
-    urls.slice(0, 5).map(url => fetchPageContent(url))
+    urls.map(url => fetchPageContent(url))
   );
 
-  const successResults = results.filter(r => r.success && r.text.length > 200);
+  const successResults = results.filter(r => r.success && r.text.length > 200).sort((a, b) => Number(isOfficialSource(b.url)) - Number(isOfficialSource(a.url)));
   console.log(`[research] Fetched ${successResults.length}/${urls.length} pages`);
 
   // Combine research material
   const researchText = successResults
-    .map((r, i) => `[출처 ${i + 1}] ${r.url}\n${r.text.slice(0, 2000)}`)
+    .map((r, i) => `[출처 ${i + 1}] ${r.url}\n${r.text.slice(0, 6000)}`)
     .join('\n\n---\n\n');
 
   return {
@@ -834,7 +899,7 @@ app.post('/api/generate', async (req, res) => {
     const research = await researchTopic(topicTitle, category);
     console.log(`[generate] Research done: ${research.count} sources collected`);
 
-    if (research.count < 2) {
+    if (research.count < 2 || (['benefits', 'policy'].includes(category) && !research.sources.some(isOfficialSource))) {
       throw new Error(`검증 가능한 출처가 부족합니다 (${research.count}/2). 이번 포스트는 발행하지 않습니다.`);
     }
 
@@ -911,7 +976,9 @@ A: 답변내용.`
 제목: ${cleanTitle}
 
 참고 자료:
-${research.text.slice(0, 7000)}
+${research.text.slice(0, 24000)}
+
+검수 필수: 현재 적용 연도, 대상 지역, 신청 대상·기간·금액과 공식 신청 링크를 실제 출처로 확인하세요. 자료가 부족하면 CONTENT_QUALITY_BLOCKED만 반환하세요. 과거 금액이나 빈 표로 총정리를 채우지 마세요. 제목보다 좁은 범위만 확인되면 발행을 보류하세요.
 
 위 참고 자료만 근거로 완성된 블로그 본문을 작성하세요.
 전반부 구성:
@@ -940,6 +1007,7 @@ ${prompts.part2}
       category,
       categoryName: cat.name,
       researchSourceCount: research.count,
+      researchSources: research.sources,
       textPrompt,
       minLength: 1800,
       status: 'pending',
@@ -1060,7 +1128,7 @@ app.post('/api/refresh', async (req, res) => {
     if (!candidate) return res.status(404).json({ error: '갱신할 성과 글을 찾지 못했습니다.' });
 
     const research = await researchTopic(candidate.title, 'policy');
-    if (research.count < 2) {
+    if (research.count < 2 || !research.sources.some(isOfficialSource)) {
       return res.status(422).json({ error: `갱신용 출처가 부족합니다 (${research.count}/2). 기존 글은 변경하지 않습니다.` });
     }
 
@@ -1074,7 +1142,9 @@ app.post('/api/refresh', async (req, res) => {
 ${existingBody.slice(0, 9000)}
 
 최신 참고 자료:
-${research.text.slice(0, 7000)}
+${research.text.slice(0, 24000)}
+
+공식 자료로 현재 적용 연도·대상·기간·금액·신청 링크를 확인하세요. 확보하지 못하면 CONTENT_QUALITY_BLOCKED만 반환하세요. 기존 이미지에 적힌 수치와 새 본문이 달라지면 IMAGE_FACTS_CHANGED를 반환하여 이미지까지 검수할 때까지 보류하세요.
 
 필수 조건:
 - 프론트매터와 제목은 쓰지 말고 완성된 본문만 작성
@@ -1097,6 +1167,7 @@ ${research.text.slice(0, 7000)}
       category: 'policy',
       categoryName: candidate.meta.categories || '최신뉴스',
       researchSourceCount: research.count,
+      researchSources: research.sources,
       textPrompt,
       minLength: 1800,
       status: 'pending',
@@ -1120,11 +1191,14 @@ app.post('/api/text-complete', (req, res) => {
   const content = stripAssistantPreamble(String(text || '')
     .replace(/^```(?:markdown)?\s*/i, '')
     .replace(/\s*```$/i, ''));
-  const contentQuality = validateArticleContent({
+  const basicQuality = validateArticleContent({
     category: textJob.category,
     title: textJob.title,
     content
   });
+  const contentQuality = !basicQuality.ok ? basicQuality : /IMAGE_FACTS_CHANGED/.test(content)
+    ? { ok: false, reason: '기존 이미지와 변경된 사실을 함께 검수해야 합니다.' }
+    : validateOfficialCoverage({ category: textJob.category, content, sources: textJob.researchSources || [] });
   if (!contentQuality.ok) {
     textQueue.splice(idx, 1);
     textJob.status = 'failed';
@@ -1152,13 +1226,10 @@ app.post('/api/text-complete', (req, res) => {
     const refreshedContent = `${frontmatter}\n\n${insertArticleImages(content, slug, textJob.title)}`;
     writeFileSync(safePostPath(textJob.postFilename), refreshedContent, 'utf-8');
     textQueue.splice(idx, 1);
-    textJob.status = 'completed';
-    textJob.completedAt = new Date().toISOString();
+    textJob.status = 'publishing';
     delete textJob.originalPostContent;
     delete textJob.textPrompt;
-    completed.push(textJob);
-    deployBlog(textJob.blogSlug, generatedDeployPaths(textJob.blogSlug, textJob.postFilename, []));
-    notifyTelegram(`♻️ 기존 글 갱신 완료\n\n제목: ${textJob.title}\n기사 보기: ${getPublishedPostUrl(textJob.postFilename)}\n시간: ${new Date().toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})}`);
+    queuePublication(textJob);
     console.log(`[text-complete] Existing post refreshed: ${textJob.postFilename}`);
     return res.json({ success: true, mode: 'refresh', postFilename: textJob.postFilename });
   }
@@ -1231,16 +1302,7 @@ app.get('/api/queue', (req, res) => {
 });
 
 app.post('/api/queue/process', async (req, res) => {
-  const job = queue.find(j => j.status === 'pending');
-  if (!job) return res.status(404).json({ error: 'No pending image job' });
-
-  try {
-    const ok = await generateImageViaCDP(job);
-    res.json({ success: ok, jobId: job.id, status: job.status, error: job.error || '' });
-  } catch (err) {
-    console.error('[queue/process] Error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  res.status(409).json({ error: 'Use the Chrome extension image queue; legacy single-image publishing is disabled' });
 });
 
 // Chrome Extension uploads completed image
@@ -1314,13 +1376,11 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
         createdAt: group.createdAt,
         completedAt: new Date().toISOString()
       };
-      completed.push(completedGroup);
+      queuePublication(completedGroup, group.imageFilenames);
       imageGroups.delete(group.groupId);
 
       console.log('[upload] Deploying post + all three images together...');
-      deployBlog(group.blogSlug, generatedDeployPaths(group.blogSlug, group.postFilename, group.imageFilenames));
-      void distributePublishedPost({ title: group.title, postFilename: group.postFilename, imageFilenames: group.imageFilenames });
-      return res.json({ success: true, message: 'Post + all three images saved and deployed' });
+      return res.json({ success: true, status: 'publishing', message: 'Saved; deployment verification pending' });
     }
 
     // 2. NOW save the post (only after image is ready)
@@ -1333,17 +1393,15 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     job.status = 'completed';
     job.completedAt = new Date().toISOString();
     delete job.postContent; // free memory
-    completed.push(job);
+    queuePublication(job, [job.imageFilename]);
     removeFromQueue(job);
 
     // 4. Deploy (post + image together)
     console.log(`[upload] Deploying post + image together...`);
-    deployBlog(job.blogSlug, generatedDeployPaths(job.blogSlug, job.postFilename, [job.imageFilename]));
 
     // 5. Distribution notification
-    void distributePublishedPost({ title: job.title, postFilename: job.postFilename, imageFilenames: [job.imageFilename] });
 
-    res.json({ success: true, message: 'Post + image saved and deployed' });
+    res.json({ success: true, status: 'publishing', message: 'Saved; deployment verification pending' });
   } catch (err) {
     console.error('[upload] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -1352,13 +1410,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
 // Manual deploy trigger
 app.post('/api/deploy', (req, res) => {
-  const { blogId } = req.body;
-  try {
-    deployBlog(blogId || 'tax-yearend');
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.status(400).json({ error: 'Use /api/admin/deploy with an explicit filename' });
 });
 
 app.post('/api/posts/repair-images', (req, res) => {
@@ -1613,9 +1665,11 @@ app.get('/api/dashboard', (req, res) => {
   const category = getCurrentCategory();
   const pending = queue.filter(j => j.status === 'pending');
   const pendingTexts = textQueue.filter(j => j.status === 'pending');
-  const latestFinished = [...failed, ...completed]
+  const publicationJobs = publisher.jobs.map(job => ({ ...job, status: job.status === 'published' ? 'completed' : job.status, deployment: true }));
+  const latestFinished = [...failed, ...completed, ...publicationJobs]
     .sort((a, b) => new Date(b.completedAt || b.createdAt) - new Date(a.completedAt || a.createdAt))[0];
-  const latest = pendingTexts[0] || pending[0] || latestFinished || null;
+  const deploying = publicationJobs.filter(job => ['queued', 'deploying', 'verifying'].includes(job.status));
+  const latest = pendingTexts[0] || pending[0] || deploying[0] || latestFinished || null;
   const latestStatus = latest?.status || '';
   res.json({
     health: { status: 'ok', queue: textQueue.length + queue.length, completed: completed.length },
@@ -1623,7 +1677,8 @@ app.get('/api/dashboard', (req, res) => {
     counts: {
       pendingTexts: pendingTexts.length,
       pendingImages: pending.length,
-      socialSent: socialHistory.reduce((count, item) => count + Object.values(item.channels || {}).filter(channel => channel.status === 'sent').length, 0)
+      publishing: deploying.length,
+      socialSent: socialHistory.reduce((count, item) => count + Object.entries(item.channels || {}).filter(([name, channel]) => name !== 'indexnow' && channel.status === 'sent').length, 0)
     },
     social: {
       configured: {
@@ -1636,7 +1691,7 @@ app.get('/api/dashboard', (req, res) => {
     },
     currentRun: latest ? {
       status: latestStatus === 'completed' ? 'completed' : latestStatus === 'failed' ? 'failed' : 'running',
-      phase: latestStatus === 'completed' ? 'published' : latestStatus === 'failed' ? 'generation-error' : latest.type === 'text' ? 'waiting-extension-text' : 'waiting-extension-image',
+      phase: latestStatus === 'completed' ? 'published' : latest.deployment ? `deployment-${latestStatus}` : latestStatus === 'failed' ? 'generation-error' : latest.type === 'text' ? 'waiting-extension-text' : 'waiting-extension-image',
       topicTitle: latest.title,
       category: latest.category || category,
       categoryName: latest.categoryName || CATEGORIES[category]?.name || category,
@@ -1644,7 +1699,9 @@ app.get('/api/dashboard', (req, res) => {
       researchSourceCount: latest.researchSourceCount || 0,
       postFilename: latest.postFilename,
       startedAt: latest.createdAt,
-      error: latest.error || ''
+      error: latest.error || latest.detail || '',
+      url: latest.url || '',
+      publicationId: latest.deployment ? latest.id : ''
     } : {
       status: schedulerRunning ? 'idle' : 'stopped',
       phase: schedulerRunning ? 'waiting-next-run' : '',
@@ -1655,6 +1712,7 @@ app.get('/api/dashboard', (req, res) => {
       ...pendingTexts.map(j => ({ time: j.createdAt, type: 'text-queued', message: `본문 대기: ${j.title}` })),
       ...pending.map(j => ({ time: j.createdAt, type: 'image-queued', message: `이미지 대기: ${j.title}` })),
       ...failed.slice(-15).map(j => ({ time: j.failedAt || j.createdAt, type: 'failed', message: `발행 중지: ${j.title} (${j.error || 'image-error'})` })),
+      ...publisher.jobs.filter(j => j.status === 'failed').slice(-15).map(j => ({ time: j.completedAt || j.createdAt, type: 'deployment-failed', message: `배포 확인 실패: ${j.title} (${j.error})` })),
       ...completed.slice(-15).map(j => ({ time: j.completedAt || j.createdAt, type: 'published', message: `발행 완료: ${j.title}` }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 20)
   });
@@ -1679,6 +1737,10 @@ app.post('/api/social/distribute', requireAdmin, async (req, res) => {
     const postPath = safePostPath(filename);
     if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
     const meta = parseFrontmatter(readFileSync(postPath, 'utf-8'));
+    if (meta.draft === 'true' || meta.noindex === 'true') return res.status(422).json({ error: 'Draft or excluded article' });
+    const verified = publisher.jobs.find(job => job.postFilename === filename && job.status === 'published');
+    if (!verified) return res.status(409).json({ error: 'Deploy and verify before sending reader notifications' });
+    await verifyPublication(verified);
     const imageName = String(meta.image || '').replace(/^\/images\//, '');
     const images = imageName ? [imageName] : [];
     const record = await distributePublishedPost({
@@ -1717,161 +1779,44 @@ app.post('/api/admin/delete', requireAdmin, (req, res) => {
   const postPath = safePostPath(req.body.filename || '');
   if (!existsSync(postPath)) return res.status(404).json({ error: 'Post not found' });
   const fm = parseFrontmatter(readFileSync(postPath, 'utf-8'));
+  const filename = req.body.filename;
+  if (publisher.jobs.some(job => job.postFilename === filename && ['queued', 'deploying', 'verifying'].includes(job.status))) return res.status(409).json({ error: 'Wait for active deployment before removing this article' });
   rmSync(postPath, { force: true });
-  if (fm.image) {
-    const imageName = fm.image.replace('/images/', '').replace(/[\\/]/g, '');
-    rmSync(join(PROJECT_ROOT, 'sites', 'tax-yearend', 'static', 'images', imageName), { force: true });
-  }
-  res.json({ success: true });
+  const job = publisher.enqueue({ id: `delete-${Date.now()}`, deleted: true, title: fm.title, postFilename: filename, url: getPublishedPostUrl(filename), paths: [`sites/tax-yearend/content/posts/${filename}`] });
+  res.status(202).json({ success: true, status: job.status });
 });
 
 app.post('/api/admin/deploy', requireAdmin, (req, res) => {
-  deployBlog('tax-yearend');
-  res.json({ success: true });
+  try {
+    const filename = String(req.body?.filename || '');
+    if (!filename) return res.status(400).json({ error: '배포할 filename을 지정하세요. 전체 변경사항을 자동 커밋하지 않습니다.' });
+    const meta = parseFrontmatter(readFileSync(safePostPath(filename), 'utf8'));
+    if (meta.draft === 'true' || meta.noindex === 'true') return res.status(422).json({ error: 'Draft or excluded article' });
+    const job = queuePublication({ id: `manual-${Date.now()}`, blogSlug: 'tax-yearend', postFilename: filename, title: meta.title });
+    res.status(202).json({ success: true, status: job.status, id: job.id });
+  } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
-// --- Deploy ---
-function deployBlog(blogSlug, changedPaths = null) {
-  console.log(`[deploy] Building and pushing ${blogSlug}...`);
-  try {
-    const commitMessage = `post: auto-generated for ${blogSlug}`;
-    const pathArgs = changedPaths?.length
-      ? ` -- ${changedPaths.map(path => `"${path.replace(/"/g, '\\"')}"`).join(' ')}`
-      : ' -A';
-    const command = process.platform === 'win32'
-      ? `git -C "${PROJECT_ROOT}" add${pathArgs} && git -C "${PROJECT_ROOT}" commit -m "${commitMessage}" && git -C "${PROJECT_ROOT}" push origin main`
-      : `git add${pathArgs} && git commit -m "${commitMessage}" && git push origin main`;
-    execSync(command, { cwd: PROJECT_ROOT, stdio: 'pipe', timeout: 120000 });
-    console.log(`[deploy] Pushed to GitHub. GitHub Actions will build and deploy.`);
-  } catch (err) {
-    console.log(`[deploy] Git push result:`, err.stdout?.toString().slice(0, 200) || err.message);
-  }
-}
+app.post('/api/admin/retry-deploy', requireAdmin, (req, res) => {
+  try { res.status(202).json(publisher.retry(req.body.id)); }
+  catch (error) { res.status(400).json({ error: error.message }); }
+});
 
-// --- CDP Image Generation (ChatGPT via Chrome) ---
-
-async function generateImageViaCDP(job) {
-  const { WebSocket } = await import('ws');
-  const CDP_URL = 'http://localhost:18800';
-
-  try {
-    // Check Chrome is running
-    const tabsRes = await fetch(`${CDP_URL}/json`);
-    const tabs = await tabsRes.json();
-    const tab = tabs.find(t => t.url.includes('chatgpt.com'));
-    if (!tab) {
-      console.log('[cdp] No ChatGPT tab found. Open Chrome with ChatGPT.');
-      return false;
-    }
-
-    const ws = new WebSocket(tab.webSocketDebuggerUrl);
-    await new Promise((r, j) => { ws.on('open', r); ws.on('error', j); });
-
-    const cdpCmd = (method, params = {}) => new Promise((resolve, reject) => {
-      const id = Math.floor(Math.random() * 999999);
-      const h = (data) => { const msg = JSON.parse(data.toString()); if (msg.id === id) { ws.removeListener('message', h); msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result); } };
-      ws.on('message', h);
-      ws.send(JSON.stringify({ id, method, params }));
-      setTimeout(() => { ws.removeListener('message', h); reject(new Error('CDP timeout')); }, 30000);
-    });
-
-    const ev = async (expr) => {
-      const r = await cdpCmd('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
-      return r.result?.value;
-    };
-
-    await cdpCmd('Runtime.enable');
-
-    // Navigate to new chat
-    console.log('[cdp] Opening new ChatGPT conversation...');
-    await cdpCmd('Page.navigate', { url: 'https://chatgpt.com/' });
-    await new Promise(r => setTimeout(r, 5000));
-
-    const before = await ev(`document.querySelectorAll('img').length`);
-
-    // Type prompt
-    const escaped = job.imagePrompt.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-    await ev(`(() => { const el = document.querySelector('#prompt-textarea') || document.querySelector('[contenteditable]'); if (!el) return 'no input'; el.focus(); el.innerHTML = \`<p>${escaped}</p>\`; el.dispatchEvent(new Event('input', { bubbles: true })); return 'ok'; })()`);
-    await new Promise(r => setTimeout(r, 1500));
-
-    // Send
-    await ev(`(() => { const btn = document.querySelector('[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]'); if (btn) { btn.click(); return 'ok'; } return 'no btn'; })()`);
-    console.log('[cdp] Prompt sent, waiting for image...');
-
-    // Wait for image (max 3 min)
-    let imageFound = false;
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 3000));
-      const count = await ev(`document.querySelectorAll('img').length`);
-      if (count > before) { imageFound = true; await new Promise(r => setTimeout(r, 3000)); break; }
-    }
-
-    if (!imageFound) { ws.close(); console.log('[cdp] No image generated'); return false; }
-
-    // Extract via canvas
-    const base64 = await ev(`(async () => { const imgs = document.querySelectorAll('img'); let t = null; for (const img of imgs) { if (img.naturalWidth > 200 && !img.src.includes('avatar') && !img.src.includes('icon')) t = img; } if (!t) return null; if (!t.complete) await new Promise(r => { t.onload = r; setTimeout(r, 5000); }); const c = document.createElement('canvas'); c.width = t.naturalWidth; c.height = t.naturalHeight; c.getContext('2d').drawImage(t, 0, 0); return c.toDataURL('image/png').split(',')[1]; })()`);
-
-    ws.close();
-
-    if (!base64 || base64.length < 100) { console.log('[cdp] Failed to extract image'); return false; }
-
-    // Save image
-    const buf = Buffer.from(base64, 'base64');
-    const imageCheck = validateNewsImage(buf);
-    if (!imageCheck.ok) {
-      console.log(`[cdp] Image rejected: ${imageCheck.reason}`);
-      job.status = 'image-rejected';
-      job.error = imageCheck.reason;
-      notifyTelegram(`⚠️ 이미지 품질 미달로 발행 중단\n\n제목: ${job.title}\n사유: ${imageCheck.reason}`);
-      return false;
-    }
-
-    const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
-    mkdirSync(imagesDir, { recursive: true });
-    writeFileSync(join(imagesDir, job.imageFilename), buf);
-    console.log(`[cdp] Image saved: ${job.imageFilename} (${imageCheck.width}x${imageCheck.height}, ${(buf.length / 1024).toFixed(0)}KB)`);
-
-    // Save post
-    const postsDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'content', 'posts');
-    mkdirSync(postsDir, { recursive: true });
-    writeFileSync(join(postsDir, job.postFilename), job.postContent, 'utf-8');
-    console.log(`[cdp] Post saved: ${job.postFilename}`);
-
-    // Update job
-    job.status = 'completed';
-    job.completedAt = new Date().toISOString();
-    delete job.postContent;
-    completed.push(job);
-    removeFromQueue(job);
-
-    // Deploy
-    deployBlog(job.blogSlug, generatedDeployPaths(job.blogSlug, job.postFilename, [job.imageFilename]));
-
-    // Distribute
-    void distributePublishedPost({ title: job.title, postFilename: job.postFilename, imageFilenames: [job.imageFilename] });
-
-    return true;
-
-  } catch (e) {
-    console.error('[cdp] Error:', e.message);
-    notifyTelegram(`⚠️ *이미지 생성 실패*\n\n제목: ${job.title}\n에러: ${e.message}\n\n→ Chrome Extension으로 수동 처리 필요`);
-    return false;
-  }
-}
 
 // --- Daily publish and refresh scheduler ---
 
-let schedulerRunning = false;
+let schedulerRunning = runtime.schedulerRunning === true;
 let schedulerTimeout = null;
 
 function stopSchedulerNow() {
   schedulerRunning = false;
   if (schedulerTimeout) clearTimeout(schedulerTimeout);
   schedulerTimeout = null;
+  saveRuntime();
 }
 
 async function hourlyTask(options = {}) {
-  if (!schedulerRunning) {
+  if (!schedulerRunning && !options.force) {
     console.log('[cron] Skipped because scheduler is stopped');
     return;
   }
@@ -1894,22 +1839,14 @@ async function hourlyTask(options = {}) {
 
     if (!genData.success) {
       console.error('[cron] Post generation failed:', genData.error);
+      failed.push({ id: `research-${Date.now()}`, title: catName, status: 'failed', error: genData.error, createdAt: now.toISOString(), failedAt: new Date().toISOString() });
+      saveRuntime();
       return;
     }
 
     console.log(`[cron] Text generation queued in Chrome Extension: "${genData.post.title}"`);
 
-    // 2. Generate image via CDP
-    const pendingJob = queue.find(j => j.id === genData.job.id);
-    if (pendingJob) {
-      console.log('[cron] Generating image via ChatGPT CDP...');
-      const imgResult = await generateImageViaCDP(pendingJob);
-      if (imgResult) {
-        console.log('[cron] ✅ Post + image published successfully!');
-      } else {
-        console.log('[cron] ⚠️ Image generation failed. Post queued for Chrome Extension.');
-      }
-    }
+    // The extension processes all three image roles; publication is verified separately.
 
   } catch (e) {
     console.error('[cron] Error:', e.message);
@@ -1970,7 +1907,7 @@ app.post('/api/cron/stop', (req, res) => {
 
 app.post('/api/cron/run', async (req, res) => {
   res.json({ success: true, message: 'Running now...' });
-  hourlyTask({ category: req.body?.category || getCurrentCategory() });
+  void hourlyTask({ category: req.body?.category || getCurrentCategory(), force: true });
 });
 
 app.get('/api/cron/status', (req, res) => {
@@ -2000,6 +1937,11 @@ app.post('/api/notify', (req, res) => {
 
 // --- Start ---
 app.listen(PORT, '0.0.0.0', () => {
+  for (const job of publisher.jobs.filter(job => job.status === 'published')) {
+    if (!completed.some(item => item.id === job.id)) completed.push({ ...job, status: 'completed' });
+  }
+  if (schedulerRunning) scheduleNextPublish();
+  void publisher.drain();
   console.log(`\n🚀 Blog API Server running at http://localhost:${PORT}`);
   console.log(`\nEndpoints:`);
   console.log(`  GET  /api/health       - Health check`);

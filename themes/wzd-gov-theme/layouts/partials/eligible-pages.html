@@ -1,0 +1,7 @@
+{{- $result := slice -}}
+{{- range . -}}
+  {{- if not (or .Params.noindex .Draft (findRE `\?\?+|(?i)contentreference` .Title) (findRE `(?i)contentreference` .RelPermalink)) -}}
+    {{- $result = $result | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- return $result -}}

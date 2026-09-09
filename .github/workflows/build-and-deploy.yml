@@ -25,6 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+      - run: npm test
+      - uses: actions/cache@v4
+        with:
+          path: .cache/responsive-v1
+          key: responsive-v1-${{ github.sha }}
+          restore-keys: responsive-v1-
+
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
@@ -37,6 +51,10 @@ jobs:
                --themesDir ${{ github.workspace }}/themes \
                --destination ${{ github.workspace }}/public \
                -F --minify
+      - run: npm run optimize
+      - run: npm run check:site
+      - name: Stamp deployed revision
+        run: printf '%s\n' "$GITHUB_SHA" > public/build-revision.txt
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

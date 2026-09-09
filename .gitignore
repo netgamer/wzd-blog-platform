@@ -3,6 +3,7 @@ node_modules/
 .env.local
 .hugo_build.lock
 resources/_gen/
+.cache/
 *.swp
 *.swo
 .DS_Store

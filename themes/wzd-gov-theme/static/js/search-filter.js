@@ -95,7 +95,7 @@
       : '<div class="empty-search">검색 결과가 없습니다.</div>';
 
     meta.textContent = (queryActive ? '"' + state.query.trim() + '" 검색 결과 ' : '전체 글 ') +
-      posts.length + '개 · ' + (state.sort === 'popular' ? '인기순' : '시간순');
+      posts.length + '개 · ' + (state.sort === 'popular' ? '추천순' : '시간순');
 
     root.querySelectorAll('.home-latest, .home-more, .list-page > .post-list, .pagination').forEach(function (el) {
       el.hidden = true;
