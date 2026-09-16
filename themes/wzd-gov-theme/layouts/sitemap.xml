@@ -1,8 +1,11 @@
 {{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  {{ $searchIndexFrom := time.AsTime (.Site.Params.searchIndexFrom | default "1970-01-01") }}
   {{ range .Data.Pages }}
-  {{ $isTagPage := hasPrefix .RelPermalink "/tags/" }}
-  {{ if and (not .Params.noindex) (not $isTagPage) }}
+  {{ $isArticle := and .IsPage (eq .Section "posts") }}
+  {{ $isRecentArticle := and $isArticle (ge .Date.Unix $searchIndexFrom.Unix) }}
+  {{ $isCorePage := or .IsHome (in (slice "/about/" "/editorial-policy/" "/jebo/" "/privacy/") .RelPermalink) }}
+  {{ if and (not .Params.noindex) (or $isRecentArticle $isCorePage) }}
   {{ $page := . }}
   <url>
     <loc>{{ .Permalink }}</loc>

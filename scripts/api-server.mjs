@@ -528,6 +528,41 @@ async function generateWithGroq(systemPrompt, userPrompt, maxTokens = 4000) {
 
 async function searchWeb(query, numResults = 5) {
   console.log(`[research] Searching: ${query}`);
+  const officialOnly = /site:(?:go\.kr|korea\.kr)/i.test(query);
+  const acceptUrl = url => {
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+      if (/\.(?:ico|png|jpe?g|gif|webp|svg|css|js|woff2?)(?:$|[?#])/i.test(parsed.pathname)) return false;
+      if (/(?:^|\.)pstatic\.net$/i.test(parsed.hostname)) return false;
+      return !officialOnly || isOfficialSource(url);
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    // Naver's web result page exposes direct Korean government URLs reliably.
+    const naverUrl = `https://search.naver.com/search.naver?where=web&query=${encodeURIComponent(query)}`;
+    const naverRes = await fetch(naverUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!naverRes.ok) throw new Error(`Naver Web ${naverRes.status}`);
+    const naverHtml = await naverRes.text();
+    const naverLinks = [...naverHtml.matchAll(/href="(https?:\/\/[^"#]+)"/g)]
+      .map(match => match[1].replace(/&amp;/g, '&'))
+      .filter(link => !link.includes('search.naver.com') && acceptUrl(link));
+    const uniqueNaverLinks = [...new Set(naverLinks)].slice(0, numResults);
+    if (uniqueNaverLinks.length > 0) {
+      console.log(`[research] Naver Web: ${uniqueNaverLinks.length} URLs`);
+      return uniqueNaverLinks;
+    }
+    console.warn('[research] Naver Web returned no usable results; trying DuckDuckGo');
+  } catch (e) {
+    console.warn('[research] Naver Web failed:', e.message);
+  }
+
   try {
     // DuckDuckGo HTML search (no API key needed)
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
@@ -540,16 +575,38 @@ async function searchWeb(query, numResults = 5) {
     // Extract result URLs
     const urls = [...html.matchAll(/href="\/\/duckduckgo\.com\/l\/\?uddg=(.*?)&/g)]
       .map(m => decodeURIComponent(m[1]))
-      .filter(u => u.startsWith('http'))
+      .filter(acceptUrl)
       .slice(0, numResults);
 
-    if (urls.length > 0) {
+    if (res.ok && urls.length > 0) {
       console.log(`[research] DuckDuckGo: ${urls.length} URLs`);
       return urls;
     }
-    console.warn('[research] DuckDuckGo returned no results; trying Bing News RSS');
+    console.warn(`[research] DuckDuckGo returned no results (${res.status}); trying Bing Web RSS`);
   } catch (e) {
     console.warn('[research] Search failed:', e.message);
+  }
+
+  try {
+    // Bing Web RSS preserves direct destination URLs and works well for site:go.kr queries.
+    const webRssUrl = `https://www.bing.com/search?format=rss&q=${encodeURIComponent(query)}&setlang=ko-KR`;
+    const webRssRes = await fetch(webRssUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!webRssRes.ok) throw new Error(`Bing Web RSS ${webRssRes.status}`);
+    const webRss = await webRssRes.text();
+    const webLinks = [...webRss.matchAll(/<item>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/g)]
+      .map(match => match[1].replace(/&amp;/g, '&').trim())
+      .filter(acceptUrl);
+    const uniqueWebLinks = [...new Set(webLinks)].slice(0, numResults);
+    if (uniqueWebLinks.length > 0) {
+      console.log(`[research] Bing Web RSS: ${uniqueWebLinks.length} URLs`);
+      return uniqueWebLinks;
+    }
+    console.warn('[research] Bing Web RSS returned no results; trying Bing News RSS');
+  } catch (e) {
+    console.warn('[research] Bing Web RSS failed:', e.message);
   }
 
   try {
@@ -570,7 +627,7 @@ async function searchWeb(query, numResults = 5) {
           return link;
         }
       })
-      .filter(link => link.startsWith('http') && !link.includes('bing.com/news/search'))
+      .filter(link => acceptUrl(link) && !link.includes('bing.com/news/search'))
       .slice(0, numResults);
     console.log(`[research] Bing News RSS: ${links.length} URLs`);
     return links;
@@ -586,9 +643,12 @@ async function fetchPageContent(url) {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       signal: AbortSignal.timeout(10000)
     });
-    const html = await res.text();
-
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType && !/(?:text\/html|application\/xhtml\+xml)/i.test(contentType)) {
+      throw new Error(`Unsupported content type: ${contentType}`);
+    }
+    const html = await res.text();
     const text = extractResearch(html);
 
     return { url, text, success: true };
@@ -597,24 +657,122 @@ async function fetchPageContent(url) {
   }
 }
 
+function getTopicTerms(topic) {
+  const stopWords = new Set(['신청', '조건', '혜택', '총정리', '핵심', '내용', '영향', '정리', '추천', '코스', '방문', '지원']);
+  const compact = String(topic || '').replace(/\d{4}/g, ' ').replace(/[^가-힣a-zA-Z0-9\s]/g, ' ');
+  const aliases = {
+    '평생교육바우처': ['평생교육이용권'],
+    '저출산': ['출생', '인구정책', '인구전략'],
+    '청년월세지원': ['청년월세', '월세 특별지원'],
+    '내일배움카드': ['국민내일배움카드']
+  };
+  const terms = compact.split(/\s+/).map(term => term.trim()).filter(term => term.length >= 2 && !stopWords.has(term));
+  return [...new Set(terms.flatMap(term => [term, ...(aliases[term] || [])]))];
+}
+
+function scoreResearchPage(result, topic, category) {
+  const text = String(result.text || '');
+  if (text.length < 500) return -1;
+  const terms = getTopicTerms(topic);
+  const normalizedText = text.toLowerCase().replace(/[^가-힣a-z0-9]/g, '');
+  const matchedTerms = terms.filter(term => normalizedText.includes(term.toLowerCase().replace(/[^가-힣a-z0-9]/g, ''))).length;
+  if (terms.length && matchedTerms === 0) return -1;
+
+  const fieldPatterns = category === 'benefits'
+    ? [/신청|접수/, /대상|자격|요건/, /기간|마감|상시/, /금액|지원액|만원|원\b|현물/, /온라인|누리집|홈페이지/]
+    : category === 'policy'
+      ? [/정책|대책|계획|법률|법안/, /시행|추진|발표|의결/, /대상|국민|가구|기업|지역/, /예산|재정|억원|조원/, /20\d{2}/]
+      : [/주소|위치/, /운영|이용시간|관람시간/, /입장료|요금|무료/, /주차|교통/];
+  const fieldScore = fieldPatterns.filter(pattern => pattern.test(text)).length;
+  const minimumFields = category === 'benefits' ? 3 : 2;
+  if (fieldScore < minimumFields) return -1;
+
+  return matchedTerms * 10 + fieldScore * 3 + (isOfficialSource(result.url) ? 25 : 0) + Math.min(10, Math.floor(text.length / 1000));
+}
+
+function detectRegionalScope(text, url = '') {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    const hostRegions = [
+      ['서울', /(?:^|\.)seoul\.go\.kr$/], ['부산', /(?:^|\.)busan\.go\.kr$/],
+      ['대구', /(?:^|\.)daegu\.go\.kr$/], ['인천', /(?:^|\.)incheon\.go\.kr$/],
+      ['광주', /(?:^|\.)gwangju\.go\.kr$/], ['대전', /(?:^|\.)daejeon\.go\.kr$/],
+      ['울산', /(?:^|\.)ulsan\.go\.kr$/], ['세종', /(?:^|\.)sejong\.go\.kr$/],
+      ['강원', /(?:^|\.)(?:gangwon|chuncheon)\.go\.kr$/], ['제주', /(?:^|\.)jeju\.go\.kr$/]
+    ];
+    const hostMatch = hostRegions.find(([, pattern]) => pattern.test(host));
+    if (hostMatch) return hostMatch[0];
+  } catch {}
+  const regions = [
+    ['서울', /서울특별시|서울시민|서울시가/], ['부산', /부산광역시|부산시민|부산시가/],
+    ['대구', /대구광역시|대구시민|대구시가/], ['인천', /인천광역시|인천시민|인천시가/],
+    ['광주', /광주광역시|광주시민|광주시가/], ['대전', /대전광역시|대전시민|대전시가/],
+    ['울산', /울산광역시|울산시민|울산시가/], ['세종', /세종특별자치시|세종시민|세종시가/],
+    ['경기', /경기도|경기\s*도민/], ['강원', /강원(?:특별자치도|도민)/],
+    ['충북', /충청북도|충북\s*도민/], ['충남', /충청남도|충남\s*도민/],
+    ['전북', /전북특별자치도|전라북도|전북\s*도민/], ['전남', /전라남도|전남\s*도민/],
+    ['경북', /경상북도|경북\s*도민/], ['경남', /경상남도|경남\s*도민/],
+    ['제주', /제주특별자치도|제주\s*도민/]
+  ];
+  return regions.find(([, pattern]) => pattern.test(String(text || '').slice(0, 5000)))?.[0] || '';
+}
+
 async function researchTopic(topic, category) {
   console.log(`[research] Researching: ${topic}`);
 
-  // Search for related articles
+  // Search several intent-specific queries. A result count alone is not enough:
+  // pages must contain the topic and fields needed to write a useful article.
   const year = new Date().getFullYear();
   const searchSuffix = (CATEGORIES[category]?.searchSuffix || '공식 안내').replace(/2026/g, String(year));
-  const officialUrls = ['benefits', 'policy'].includes(category) ? await searchWeb(`${topic} ${year} site:go.kr`, 4) : [];
-  const focusedUrls = await searchWeb(`${topic} ${searchSuffix}`);
-  const broadUrls = focusedUrls.length >= 3 ? [] : await searchWeb(topic);
-  const urls = [...new Set([...officialUrls, ...focusedUrls, ...broadUrls])].slice(0, 6);
+  const officialQueries = category === 'benefits'
+    ? [`${topic} ${year} 신청 대상 기간 금액 site:go.kr`, `${topic} ${year} 공식 안내 site:korea.kr`]
+    : category === 'policy'
+      ? [`${topic} ${year} 주요 내용 시행 site:go.kr`, `${topic} ${year} 정책브리핑 site:korea.kr`]
+      : [];
+  const queryResults = await Promise.all([
+    ...officialQueries.map(query => searchWeb(query, 6)),
+    searchWeb(`${topic} ${searchSuffix}`, 7),
+    searchWeb(topic, 5)
+  ]);
+  const urls = [...new Set(queryResults.flat())].slice(0, 14);
 
-  // Fetch content from top results
   const results = await Promise.all(
     urls.map(url => fetchPageContent(url))
   );
 
-  const successResults = results.filter(r => r.success && r.text.length > 200).sort((a, b) => Number(isOfficialSource(b.url)) - Number(isOfficialSource(a.url)));
-  console.log(`[research] Fetched ${successResults.length}/${urls.length} pages`);
+  let successResults = results
+    .filter(result => result.success)
+    .map(result => ({ ...result, qualityScore: scoreResearchPage(result, topic, category) }))
+    .filter(result => result.qualityScore >= 0)
+    .sort((a, b) => b.qualityScore - a.qualityScore)
+    .slice(0, 8);
+
+  let scope = '';
+  let regionalMismatch = false;
+  if (category === 'benefits' && successResults.length > 0) {
+    scope = detectRegionalScope(successResults[0].text, successResults[0].url);
+    let scopedResults = scope
+      ? successResults.filter(result => detectRegionalScope(result.text, result.url) === scope)
+      : successResults;
+    if (scope && scopedResults.length < 2) {
+      const scopedUrls = await searchWeb(`${scope} ${topic} ${year} 신청 대상 기간 금액`, 8);
+      const scopedFetched = await Promise.all(scopedUrls.map(url => fetchPageContent(url)));
+      scopedResults = [...successResults, ...scopedFetched]
+        .filter((result, index, all) => result.success && all.findIndex(item => item.url === result.url) === index)
+        .map(result => ({ ...result, qualityScore: scoreResearchPage(result, topic, category) }))
+        .filter(result => result.qualityScore >= 0 && detectRegionalScope(result.text, result.url) === scope)
+        .sort((a, b) => b.qualityScore - a.qualityScore)
+        .slice(0, 8);
+    }
+    if (scope && scopedResults.length >= 2) successResults = scopedResults;
+    else if (scope) { regionalMismatch = true; scope = ''; }
+  }
+  results.filter(result => result.success).forEach(result => {
+    const score = scoreResearchPage(result, topic, category);
+    console.log(`[research] Candidate ${score >= 0 ? 'accepted' : 'rejected'} score=${score}: ${result.url}`);
+  });
+  const officialCount = successResults.filter(result => isOfficialSource(result.url)).length;
+  console.log(`[research] Accepted ${successResults.length}/${urls.length} relevant pages (${officialCount} official)`);
 
   // Combine research material
   const researchText = successResults
@@ -624,7 +782,10 @@ async function researchTopic(topic, category) {
   return {
     sources: successResults.map(r => r.url),
     text: researchText,
-    count: successResults.length
+    count: successResults.length,
+    officialCount,
+    scope,
+    regionalMismatch
   };
 }
 
@@ -725,7 +886,7 @@ async function fetchGoogleTrendsKR() {
 }
 
 // Find topic matching category
-function findTopicForCategory(trends, category) {
+function findTopicForCategory(trends, category, excludedTopics = []) {
   const cat = CATEGORIES[category];
 
   // Lifestyle: use seasonal keywords
@@ -734,7 +895,16 @@ function findTopicForCategory(trends, category) {
   }
 
   function unused(topic) {
-    return !findExistingPostByTitle(buildArticleTitle(topic, category));
+    if (excludedTopics.includes(topic)) return false;
+    const title = buildArticleTitle(topic, category);
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+    const recentlyBlocked = failed.some(item => {
+      const failedAt = new Date(item.failedAt || item.createdAt || 0).getTime();
+      const blocked = /콘텐츠 품질 미달|출처가 부족|CONTENT_QUALITY_BLOCKED/i.test(String(item.error || ''));
+      const failedTopic = String(item.topicTitle || '').trim();
+      return blocked && failedAt >= cutoff && (String(item.title || '').includes(topic) || (failedTopic && title.includes(failedTopic)));
+    });
+    return !findExistingPostByTitle(title) && !recentlyBlocked;
   }
 
   // 1. Match trends to category keywords
@@ -764,12 +934,14 @@ function findTopicForCategory(trends, category) {
 }
 
 function buildArticleTitle(topic, category) {
-  const categoryTitleSuffix = {
-    policy: '핵심 내용과 영향 정리',
-    benefits: '신청 조건과 혜택 총정리',
-    lifestyle: '추천 코스와 방문 팁'
+  const year = getKstDateParts().year;
+  const normalizedTopic = String(topic || '').replace(/^\d{4}\uB144\s*/, '').trim();
+  const categoryTitle = {
+    policy: `${year}\uB144 ${normalizedTopic}: \uB2EC\uB77C\uC9C0\uB294 \uB0B4\uC6A9\uACFC \uC0DD\uD65C \uC601\uD5A5`,
+    benefits: `${year}\uB144 ${normalizedTopic}: \uB300\uC0C1·\uAE08\uC561·\uC2E0\uCCAD\uBC29\uBC95`,
+    lifestyle: `${normalizedTopic}: \uAC80\uC99D\uB41C \uBA85\uC18C·\uB9DB\uC9D1·\uBC29\uBB38 \uCF54\uC2A4`
   };
-  return `${topic} ${categoryTitleSuffix[category] || '핵심 정리'}`.slice(0, 45);
+  return (categoryTitle[category] || `${year}\uB144 ${normalizedTopic}: \uD575\uC2EC \uC815\uBCF4`).slice(0, 58);
 }
 
 const SCHEDULE_SLOTS_KST = [
@@ -887,7 +1059,7 @@ app.post('/api/generate', async (req, res) => {
       console.log(`[generate] Category: ${cat.name} (${category})`);
       console.log('[generate] Fetching Google Trends KR...');
       const trends = await fetchGoogleTrendsKR();
-      const match = findTopicForCategory(trends, category);
+      const match = findTopicForCategory(trends, category, req.body.excludedTopics || []);
       if (!match) throw new Error(`${cat.name} 카테고리의 미발행 주제 후보가 없습니다.`);
       topicTitle = match.topic;
       topicSource = match.source;
@@ -897,10 +1069,19 @@ app.post('/api/generate', async (req, res) => {
     // 1. Web Research - 관련 기사 5개 검색 + 내용 수집
     console.log(`[generate] Researching: ${topicTitle}`);
     const research = await researchTopic(topicTitle, category);
+    res.locals.selectedTopic = topicTitle;
     console.log(`[generate] Research done: ${research.count} sources collected`);
 
-    if (research.count < 2 || (['benefits', 'policy'].includes(category) && !research.sources.some(isOfficialSource))) {
-      throw new Error(`검증 가능한 출처가 부족합니다 (${research.count}/2). 이번 포스트는 발행하지 않습니다.`);
+    const officialSourceCount = research.sources.filter(isOfficialSource).length;
+    if (research.regionalMismatch) {
+      throw new Error('지역별 지원 제도인데 동일 지역의 공식 상세자료를 2개 이상 확보하지 못했습니다. 다른 주제로 전환합니다.');
+    }
+    const minimumRelevantSources = ['benefits', 'policy'].includes(category) ? 2 : 3;
+    if (research.count < minimumRelevantSources || (['benefits', 'policy'].includes(category) && officialSourceCount < 1)) {
+      const details = ['benefits', 'policy'].includes(category)
+        ? `관련 자료 ${research.count}개 (필수 ${minimumRelevantSources}개), 공식 기관 ${officialSourceCount}개 (필수 1개)`
+        : `관련 자료 ${research.count}개 (필수 3개)`;
+      throw new Error(`검증 가능한 출처가 부족합니다: ${details}. 이번 포스트는 발행하지 않습니다.`);
     }
 
     await new Promise(r => setTimeout(r, 2000));
@@ -913,7 +1094,9 @@ app.post('/api/generate', async (req, res) => {
 현재 날짜는 ${getKoreaDateString()}입니다.
 참고 자료에 명시된 사실만 사용하고, 확인되지 않은 주소·가격·운영시간·날짜·인물·수치를 만들지 마세요.
 확인할 수 없는 항목은 생략하거나 "방문 전 공식 안내 확인"으로 표시하세요.
-구체적인 수치/날짜/장소는 참고 자료에서 확인된 경우에만 포함. 최대한 길고 상세하게 작성.`;
+구체적인 수치/날짜/장소는 참고 자료에서 확인된 경우에만 포함.
+아래 구성은 자료가 있는 항목만 작성하세요. 전문가 의견, 월별 일정, 온라인 화면의 5단계를 임의로 만들지 마세요.
+상시 신청 제도는 상시 신청으로 설명하고, 출처에 없는 부수 항목은 생략하세요. 핵심 대상·혜택·신청 경로가 부족할 때만 발행을 보류하세요.`;
 
     // Category-specific part prompts
     const partPrompts = {
@@ -965,20 +1148,23 @@ A: 답변내용.`
 
     const prompts = partPrompts[category] || partPrompts.benefits;
 
-    const cleanTitle = buildArticleTitle(topicTitle, category);
+    const scopedTopicTitle = research.scope && !String(topicTitle).includes(research.scope)
+      ? `${research.scope} ${topicTitle}`
+      : topicTitle;
+    const cleanTitle = buildArticleTitle(scopedTopicTitle, category);
     const existingPost = findExistingPostByTitle(cleanTitle);
     if (existingPost) {
       throw new Error(`동일 제목 글이 이미 발행되어 있습니다: ${existingPost}`);
     }
     const textPrompt = `${systemPrompt}
 
-주제: ${topicTitle}
+주제: ${scopedTopicTitle}
 제목: ${cleanTitle}
 
 참고 자료:
 ${research.text.slice(0, 24000)}
 
-검수 필수: 현재 적용 연도, 대상 지역, 신청 대상·기간·금액과 공식 신청 링크를 실제 출처로 확인하세요. 자료가 부족하면 CONTENT_QUALITY_BLOCKED만 반환하세요. 과거 금액이나 빈 표로 총정리를 채우지 마세요. 제목보다 좁은 범위만 확인되면 발행을 보류하세요.
+검수 필수: 현재 적용 연도, 대상 지역, 신청 대상·기간·금액과 공식 신청 링크를 실제 출처로 확인하세요. 핵심 자료가 부족하면 CONTENT_QUALITY_BLOCKED: 뒤에 부족한 항목과 이유를 한 줄로 적으세요. 과거 금액이나 빈 표로 총정리를 채우지 마세요. 제목보다 좁은 범위만 확인되면 발행을 보류하세요.
 
 위 참고 자료만 근거로 완성된 블로그 본문을 작성하세요.
 전반부 구성:
@@ -989,6 +1175,8 @@ ${prompts.part2}
 
 필수 조건:
 - 프론트매터와 제목은 쓰지 말고 본문만 작성
+- 첫 2개 문단에서 검색자가 가장 궁금해하는 대상·금액·기간·변경점을 바로 답변
+- 제목의 핵심 키워드를 첫 문단과 첫 ## 소제목에 자연스럽게 사용
 - ## 소제목 구조와 표 포함
 - 최소 2500자 이상
 - 참고 자료에 없는 주소, 가격, 운영시간, 날짜, 인물, 수치를 추측하거나 만들지 않기
@@ -1000,9 +1188,11 @@ ${prompts.part2}
     const textJob = {
       id: `text-${Date.now()}`,
       type: 'text',
+      recoveryAttempt: Number(req.body.recoveryAttempt) || 0,
+      excludedTopics: [...(req.body.excludedTopics || []), topicTitle],
       blogId: blogConfig.id,
       blogSlug: blogConfig.slug,
-      topicTitle,
+      topicTitle: scopedTopicTitle,
       title: cleanTitle,
       category,
       categoryName: cat.name,
@@ -1106,7 +1296,7 @@ image: "/images/${imageFilename}"
 
   } catch (err) {
     console.error('[generate] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, topic: res.locals.selectedTopic });
   }
 });
 
@@ -1206,7 +1396,15 @@ app.post('/api/text-complete', (req, res) => {
     textJob.failedAt = new Date().toISOString();
     failed.push(textJob);
     console.warn(`[text-complete] Publication blocked for ${textJob.title}: ${contentQuality.reason}`);
-    notifyTelegram(`⚠️ 추천 글 품질 미달로 발행 중단\n\n제목: ${textJob.title}\n사유: ${contentQuality.reason}`);
+    const retry = textJob.mode !== 'refresh' && (textJob.recoveryAttempt || 0) < 3;
+    saveRuntime();
+    if (retry) {
+      setTimeout(() => hourlyTask({ force: true, category: textJob.category,
+        recoveryAttempt: (textJob.recoveryAttempt || 0) + 1,
+        excludedTopics: textJob.excludedTopics || [textJob.topicTitle] }), 5000);
+    } else {
+      notifyTelegram(`⚠️ 글 품질 검수로 발행 보류\n\n제목: ${textJob.title}\n사유: ${contentQuality.reason}\n자동 대체 주제 시도를 마쳤습니다.`);
+    }
     return res.status(422).json({ error: textJob.error, blocked: true });
   }
   if (content.length < textJob.minLength || !content.includes('## ')) {
@@ -1338,6 +1536,18 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     const imagesDir = join(PROJECT_ROOT, 'sites', job.blogSlug, 'static', 'images');
     mkdirSync(imagesDir, { recursive: true });
     const imagePath = join(imagesDir, job.imageFilename);
+    if (job.groupId) {
+      const siblingGroup = imageGroups.get(job.groupId);
+      for (const role of siblingGroup?.uploadedRoles || []) {
+        const suffix = role === 'main' ? '' : `-${role}`;
+        const siblingName = job.imageFilename.replace(/(?:-mid|-comic)?\.png$/, `${suffix}.png`);
+        const siblingPath = join(imagesDir, siblingName);
+        if (siblingName !== job.imageFilename && existsSync(siblingPath)
+            && readFileSync(siblingPath).equals(req.file.buffer)) {
+          return res.status(422).json({ error: `Duplicate image: ${job.imageRole} matches ${role}; generate a distinct image`, retry: true });
+        }
+      }
+    }
     writeFileSync(imagePath, req.file.buffer);
     console.log(`[upload] Image saved: ${imagePath} (${imageCheck.width}x${imageCheck.height}, ${(req.file.buffer.length / 1024).toFixed(0)}KB)`);
 
@@ -1613,6 +1823,20 @@ app.post('/api/image-error', (req, res) => {
   if (!jobId) return res.status(400).json({ error: 'jobId required' });
 
   const idx = queue.findIndex(j => String(j.id) === String(jobId));
+  const retryableAspectError = /HTTP 422|비율|1:1|square|landscape/i.test(String(error || ''));
+  if (idx >= 0 && retryableAspectError) {
+    const retryJob = queue[idx];
+    retryJob.status = 'pending';
+    retryJob.aspectRetries = (retryJob.aspectRetries || 0) + 1;
+    retryJob.lastError = error;
+    retryJob.createdAt = new Date().toISOString();
+    console.warn(`[image-error] Keeping aspect-mismatch job pending for retry ${retryJob.aspectRetries}: ${retryJob.id}`);
+    return res.status(202).json({ success: true, retry: true, retryCount: retryJob.aspectRetries, job: retryJob });
+  }
+  if (idx < 0) {
+    console.warn(`[image-error] Ignoring duplicate error for completed/removed job: ${jobId} ${error || ''}`);
+    return res.json({ success: true, duplicate: true });
+  }
   const job = idx >= 0 ? queue.splice(idx, 1)[0] : { id: jobId, title: 'unknown' };
   if (job.groupId) {
     for (let i = queue.length - 1; i >= 0; i -= 1) {
@@ -1833,14 +2057,21 @@ async function hourlyTask(options = {}) {
     const genRes = await fetch(`http://localhost:${PORT}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category })
+      body: JSON.stringify({ category, recoveryAttempt: options.recoveryAttempt || 0,
+        excludedTopics: options.excludedTopics || [] })
     });
     const genData = await genRes.json();
 
     if (!genData.success) {
+      if (genRes.status === 409) return;
       console.error('[cron] Post generation failed:', genData.error);
       failed.push({ id: `research-${Date.now()}`, title: catName, status: 'failed', error: genData.error, createdAt: now.toISOString(), failedAt: new Date().toISOString() });
       saveRuntime();
+      if (genData.topic && (options.recoveryAttempt || 0) < 3) {
+        setTimeout(() => hourlyTask({ force: true, category,
+          recoveryAttempt: (options.recoveryAttempt || 0) + 1,
+          excludedTopics: [...(options.excludedTopics || []), genData.topic] }), 5000);
+      }
       return;
     }
 

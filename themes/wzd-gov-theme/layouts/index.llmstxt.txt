@@ -33,7 +33,9 @@ Editorial contact: netgamer@naver.com
 ## Latest articles
 
 {{- $posts := where .Site.RegularPages "Section" "posts" -}}
-{{- range first 50 $posts.ByDate.Reverse }}
+{{- $searchIndexFrom := time.AsTime (.Site.Params.searchIndexFrom | default "1970-01-01") -}}
+{{- $posts = where $posts.ByDate.Reverse "Date.Unix" "ge" $searchIndexFrom.Unix -}}
+{{- range first 50 $posts }}
 - [{{ .Title }}]({{ .Permalink }}) — {{ .Date.Format "2006-01-02" }}{{ with .Description }}: {{ . | plainify | truncate 180 }}{{ end }}
 {{- end }}
 

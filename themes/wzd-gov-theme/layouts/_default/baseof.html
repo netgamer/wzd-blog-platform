@@ -17,10 +17,12 @@
   <meta name="application-name" content="{{ $displayTitle }}">
   <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   {{ $isArticlePage := and .IsPage (eq .Section "posts") }}
+  {{ $searchIndexFrom := time.AsTime (.Site.Params.searchIndexFrom | default "1970-01-01") }}
+  {{ $isLegacyArticle := and $isArticlePage (lt .Date.Unix $searchIndexFrom.Unix) }}
   {{ if $isArticlePage }}<meta name="author" content="{{ .Params.author | default .Site.Params.author }}">{{ end }}
   <meta name="keywords" content="{{ if .Params.tags }}{{ delimit .Params.tags ", " }}{{ else }}{{ delimit .Site.Params.keywords ", " }}{{ end }}">
   {{ $isTagPage := hasPrefix .RelPermalink "/tags/" }}
-  {{ if or .Params.noindex $isTagPage }}
+  {{ if or .Params.noindex $isTagPage $isLegacyArticle }}
   <meta name="robots" content="noindex,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   {{ else }}
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
