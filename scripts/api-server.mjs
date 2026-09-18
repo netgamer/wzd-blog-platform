@@ -1083,9 +1083,10 @@ app.post('/api/generate', async (req, res) => {
       throw new Error('지역별 지원 제도인데 동일 지역의 공식 상세자료를 2개 이상 확보하지 못했습니다. 다른 주제로 전환합니다.');
     }
     const minimumRelevantSources = ['benefits', 'policy'].includes(category) ? 2 : 3;
-    if (research.count < minimumRelevantSources || (['benefits', 'policy'].includes(category) && officialSourceCount < 1)) {
+    const minimumOfficialSources = ['benefits', 'policy'].includes(category) ? 2 : 0;
+    if (research.count < minimumRelevantSources || officialSourceCount < minimumOfficialSources) {
       const details = ['benefits', 'policy'].includes(category)
-        ? `관련 자료 ${research.count}개 (필수 ${minimumRelevantSources}개), 공식 기관 ${officialSourceCount}개 (필수 1개)`
+        ? `관련 자료 ${research.count}개 (필수 ${minimumRelevantSources}개), 공식 기관 ${officialSourceCount}개 (필수 ${minimumOfficialSources}개)`
         : `관련 자료 ${research.count}개 (필수 3개)`;
       throw new Error(`검증 가능한 출처가 부족합니다: ${details}. 이번 포스트는 발행하지 않습니다.`);
     }
@@ -1402,7 +1403,7 @@ app.post('/api/text-complete', (req, res) => {
     textJob.failedAt = new Date().toISOString();
     failed.push(textJob);
     console.warn(`[text-complete] Publication blocked for ${textJob.title}: ${contentQuality.reason}`);
-    const retry = textJob.mode !== 'refresh' && (textJob.recoveryAttempt || 0) < 3;
+    const retry = textJob.mode !== 'refresh' && (textJob.recoveryAttempt || 0) < 6;
     saveRuntime();
     if (retry) {
       setTimeout(() => hourlyTask({ force: true, category: textJob.category,
@@ -2073,7 +2074,7 @@ async function hourlyTask(options = {}) {
       console.error('[cron] Post generation failed:', genData.error);
       failed.push({ id: `research-${Date.now()}`, title: catName, status: 'failed', error: genData.error, createdAt: now.toISOString(), failedAt: new Date().toISOString() });
       saveRuntime();
-      if (genData.topic && (options.recoveryAttempt || 0) < 3) {
+      if (genData.topic && (options.recoveryAttempt || 0) < 6) {
         setTimeout(() => hourlyTask({ force: true, category,
           recoveryAttempt: (options.recoveryAttempt || 0) + 1,
           excludedTopics: [...(options.excludedTopics || []), genData.topic] }), 5000);
