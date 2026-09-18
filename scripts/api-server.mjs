@@ -1565,8 +1565,8 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     if (roleAspectInvalid) {
       const expected = job.imageRole === 'main' ? '16:9 landscape' : '1:1 square';
       const reason = `${job.imageRole} image must be ${expected}; received ${imageCheck.width}x${imageCheck.height}`;
-      console.warn(`[upload] Role mismatch, keeping job pending: ${reason}`);
-      return res.status(422).json({ error: reason, retry: true });
+      console.warn(`[upload] Role mismatch, rejecting without automatic retry: ${reason}`);
+      return res.status(422).json({ error: reason, retry: false });
     }
 
     // 1. Save image
@@ -1581,7 +1581,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
         const siblingPath = join(imagesDir, siblingName);
         if (siblingName !== job.imageFilename && existsSync(siblingPath)
             && readFileSync(siblingPath).equals(req.file.buffer)) {
-          return res.status(422).json({ error: `Duplicate image: ${job.imageRole} matches ${role}; generate a distinct image`, retry: true });
+          return res.status(422).json({ error: `Duplicate image: ${job.imageRole} matches ${role}; generate a distinct image`, retry: false });
         }
       }
     }
@@ -1860,16 +1860,6 @@ app.post('/api/image-error', (req, res) => {
   if (!jobId) return res.status(400).json({ error: 'jobId required' });
 
   const idx = queue.findIndex(j => String(j.id) === String(jobId));
-  const retryableImageError = /HTTP 422|Duplicate image|중복 이미지|비율|1:1|square|landscape/i.test(String(error || ''));
-  if (idx >= 0 && retryableImageError && (queue[idx].validationRetries || 0) < 5) {
-    const retryJob = queue[idx];
-    retryJob.status = 'pending';
-    retryJob.validationRetries = (retryJob.validationRetries || 0) + 1;
-    retryJob.lastError = error;
-    retryJob.createdAt = new Date().toISOString();
-    console.warn(`[image-error] Keeping invalid image pending for retry ${retryJob.validationRetries}: ${retryJob.id}`);
-    return res.status(202).json({ success: true, retry: true, retryCount: retryJob.validationRetries, job: retryJob });
-  }
   if (idx < 0) {
     console.warn(`[image-error] Ignoring duplicate error for completed/removed job: ${jobId} ${error || ''}`);
     return res.json({ success: true, duplicate: true });
