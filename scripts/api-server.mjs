@@ -1308,6 +1308,7 @@ image: "/images/${imageFilename}"
 });
 
 app.get('/api/text-queue', (req, res) => {
+  if (req.headers['x-wzd-worker'] !== 'auto-news-v3.6') return res.json([]);
   const now = Date.now();
   res.json(textQueue.filter(job => job.status === 'pending' && (!job.nextDispatchAt || new Date(job.nextDispatchAt).getTime() <= now)));
 });
@@ -1502,6 +1503,7 @@ app.post('/api/text-error', (req, res) => {
 
 // Chrome Extension polls this for pending image jobs
 app.get('/api/queue', (req, res) => {
+  if (req.headers['x-wzd-worker'] !== 'auto-news-v3.6') return res.json([]);
   const pending = queue.filter(j => j.status === 'pending');
   res.json(pending);
 });
@@ -1857,7 +1859,7 @@ app.post('/api/image-error', (req, res) => {
   job.failedAt = new Date().toISOString();
   failed.push(job);
 
-  if (stopScheduler) stopSchedulerNow();
+  if (stopScheduler && error === 'chatgpt-image-quota') stopSchedulerNow();
 
   console.log(`[image-error] ${job.id} ${job.title}: ${job.error}${job.resetAt ? ` resetAt=${job.resetAt}` : ''}`);
   notifyTelegram(`⏸️ *자동 포스팅 중지*\n\n사유: ${job.error}\n제목: ${job.title}\n${job.resetAt ? `재개 가능 시간: ${job.resetAt}` : ''}\n\n이미지 없는 글은 발행하지 않고 대기 작업을 내렸습니다.`);
