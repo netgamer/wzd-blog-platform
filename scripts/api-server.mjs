@@ -1823,15 +1823,15 @@ app.post('/api/image-error', (req, res) => {
   if (!jobId) return res.status(400).json({ error: 'jobId required' });
 
   const idx = queue.findIndex(j => String(j.id) === String(jobId));
-  const retryableAspectError = /HTTP 422|비율|1:1|square|landscape/i.test(String(error || ''));
-  if (idx >= 0 && retryableAspectError) {
+  const retryableImageError = /HTTP 422|Duplicate image|중복 이미지|비율|1:1|square|landscape/i.test(String(error || ''));
+  if (idx >= 0 && retryableImageError && (queue[idx].validationRetries || 0) < 3) {
     const retryJob = queue[idx];
     retryJob.status = 'pending';
-    retryJob.aspectRetries = (retryJob.aspectRetries || 0) + 1;
+    retryJob.validationRetries = (retryJob.validationRetries || 0) + 1;
     retryJob.lastError = error;
     retryJob.createdAt = new Date().toISOString();
-    console.warn(`[image-error] Keeping aspect-mismatch job pending for retry ${retryJob.aspectRetries}: ${retryJob.id}`);
-    return res.status(202).json({ success: true, retry: true, retryCount: retryJob.aspectRetries, job: retryJob });
+    console.warn(`[image-error] Keeping invalid image pending for retry ${retryJob.validationRetries}: ${retryJob.id}`);
+    return res.status(202).json({ success: true, retry: true, retryCount: retryJob.validationRetries, job: retryJob });
   }
   if (idx < 0) {
     console.warn(`[image-error] Ignoring duplicate error for completed/removed job: ${jobId} ${error || ''}`);
