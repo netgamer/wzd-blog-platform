@@ -1308,9 +1308,22 @@ image: "/images/${imageFilename}"
 });
 
 app.get('/api/text-queue', (req, res) => {
-  if (req.headers['x-wzd-worker'] !== 'auto-news-v3.6') return res.json([]);
+  if (!['auto-news-v3.6', 'auto-news-v3.7'].includes(req.headers['x-wzd-worker'])) return res.json([]);
   const now = Date.now();
-  res.json(textQueue.filter(job => job.status === 'pending' && (!job.nextDispatchAt || new Date(job.nextDispatchAt).getTime() <= now)));
+  const activeJobId = req.headers['x-wzd-active-job'];
+  if (activeJobId) return res.json(textQueue.filter(job => String(job.id) === String(activeJobId)));
+  for (const job of textQueue) {
+    if (job.status === 'processing' && now - new Date(job.claimedAt || 0).getTime() > 8 * 60 * 1000) {
+      job.status = 'pending';
+      job.claimedAt = null;
+    }
+  }
+  if (textQueue.some(job => job.status === 'processing')) return res.json([]);
+  const job = textQueue.find(item => item.status === 'pending' && (!item.nextDispatchAt || new Date(item.nextDispatchAt).getTime() <= now));
+  if (!job) return res.json([]);
+  job.status = 'processing';
+  job.claimedAt = new Date().toISOString();
+  res.json([job]);
 });
 
 app.post('/api/refresh', async (req, res) => {
@@ -1486,6 +1499,8 @@ app.post('/api/text-error', (req, res) => {
   const retryableWindowError = /No current window|Could not establish connection|Receiving end does not exist|입력창을 찾을 수 없습니다|전송 버튼을 찾을 수 없습니다/i.test(String(error || ''));
   if (idx >= 0 && retryableWindowError) {
     const job = textQueue[idx];
+    job.status = 'pending';
+    job.claimedAt = null;
     job.dispatchRetries = (job.dispatchRetries || 0) + 1;
     job.lastDispatchError = error;
     job.nextDispatchAt = new Date(Date.now() + 60 * 1000).toISOString();
@@ -1503,9 +1518,22 @@ app.post('/api/text-error', (req, res) => {
 
 // Chrome Extension polls this for pending image jobs
 app.get('/api/queue', (req, res) => {
-  if (req.headers['x-wzd-worker'] !== 'auto-news-v3.6') return res.json([]);
-  const pending = queue.filter(j => j.status === 'pending');
-  res.json(pending);
+  if (!['auto-news-v3.6', 'auto-news-v3.7'].includes(req.headers['x-wzd-worker'])) return res.json([]);
+  const activeJobId = req.headers['x-wzd-active-job'];
+  if (activeJobId) return res.json(queue.filter(job => String(job.id) === String(activeJobId)));
+  const now = Date.now();
+  for (const job of queue) {
+    if (job.status === 'processing' && now - new Date(job.claimedAt || 0).getTime() > 8 * 60 * 1000) {
+      job.status = 'pending';
+      job.claimedAt = null;
+    }
+  }
+  if (queue.some(job => job.status === 'processing')) return res.json([]);
+  const job = queue.find(item => item.status === 'pending');
+  if (!job) return res.json([]);
+  job.status = 'processing';
+  job.claimedAt = new Date().toISOString();
+  res.json([job]);
 });
 
 app.post('/api/queue/process', async (req, res) => {
@@ -1820,8 +1848,8 @@ app.post('/api/posts/repair-mid-image', (req, res) => {
 // Get job status
 app.get('/api/jobs', (req, res) => {
   res.json({
-    pendingTexts: textQueue.filter(j => j.status === 'pending'),
-    pending: queue.filter(j => j.status === 'pending'),
+    pendingTexts: textQueue.filter(j => ['pending', 'processing'].includes(j.status)),
+    pending: queue.filter(j => ['pending', 'processing'].includes(j.status)),
     completed,
     failed
   });
@@ -1896,8 +1924,8 @@ function safePostPath(filename) {
 
 app.get('/api/dashboard', (req, res) => {
   const category = getCurrentCategory();
-  const pending = queue.filter(j => j.status === 'pending');
-  const pendingTexts = textQueue.filter(j => j.status === 'pending');
+  const pending = queue.filter(j => ['pending', 'processing'].includes(j.status));
+  const pendingTexts = textQueue.filter(j => ['pending', 'processing'].includes(j.status));
   const publicationJobs = publisher.jobs.map(job => ({ ...job, status: job.status === 'published' ? 'completed' : job.status, deployment: true }));
   const latestFinished = [...failed, ...completed, ...publicationJobs]
     .sort((a, b) => new Date(b.completedAt || b.createdAt) - new Date(a.completedAt || a.createdAt))[0];
