@@ -725,7 +725,13 @@ async function researchTopic(topic, category) {
   const year = new Date().getFullYear();
   const searchSuffix = (CATEGORIES[category]?.searchSuffix || '공식 안내').replace(/2026/g, String(year));
   const officialQueries = category === 'benefits'
-    ? [`${topic} ${year} 신청 대상 기간 금액 site:go.kr`, `${topic} ${year} 공식 안내 site:korea.kr`]
+    ? [
+        `${topic} ${year} 신청 대상 기간 금액 site:go.kr`,
+        `${topic} ${year} 공식 안내 site:korea.kr`,
+        `${topic} ${year} 대상 지급액 산정 신청 site:work24.go.kr`,
+        `${topic} ${year} 대상 지급액 산정 신청 site:moel.go.kr`,
+        `${topic} ${year} 대상 지급액 신청 site:bokjiro.go.kr`
+      ]
     : category === 'policy'
       ? [`${topic} ${year} 주요 내용 시행 site:go.kr`, `${topic} ${year} 정책브리핑 site:korea.kr`]
       : [];
@@ -1475,7 +1481,7 @@ image: "/images/${imageFilename}"
 app.post('/api/text-error', (req, res) => {
   const { jobId, error } = req.body || {};
   const idx = textQueue.findIndex(job => String(job.id) === String(jobId));
-  const retryableWindowError = /No current window|Could not establish connection|Receiving end does not exist/i.test(String(error || ''));
+  const retryableWindowError = /No current window|Could not establish connection|Receiving end does not exist|입력창을 찾을 수 없습니다|전송 버튼을 찾을 수 없습니다/i.test(String(error || ''));
   if (idx >= 0 && retryableWindowError) {
     const job = textQueue[idx];
     job.dispatchRetries = (job.dispatchRetries || 0) + 1;
