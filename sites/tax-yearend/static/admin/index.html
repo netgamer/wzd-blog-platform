@@ -87,17 +87,11 @@ table.posts tr:hover td{background:#f0f7ff}
     <div class="actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <select id="catSelect" style="padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:0.9rem">
         <option value="">자동 로테이션</option>
-        <option value="economy">경제</option>
-        <option value="industry">산업</option>
-        <option value="society">사회</option>
-        <option value="world">세계</option>
-        <option value="culture">문화</option>
-        <option value="health">건강</option>
-        <option value="entertainment">연예</option>
-        <option value="sports">스포츠</option>
-        <option value="it">IT</option>
+        <option value="policy">정책·뉴스</option>
+        <option value="benefits">지원금·혜택</option>
+        <option value="lifestyle">생활·명소</option>
       </select>
-      <button class="btn btn-blue" onclick="runNow()">지금 실행</button>
+      <button id="runNowBtn" class="btn btn-blue" onclick="runNow()">지금 실행</button>
       <button class="btn btn-gray" onclick="refreshDash()">새로고침</button>
       <span id="rotationInfo" style="font-size:0.85rem;color:#666;margin-left:8px"></span>
     </div>
@@ -172,6 +166,7 @@ function hdr(){return{'X-Admin-Password':PW,'Content-Type':'application/json'}}
 
 function showMsg(text,ok){
   var el=document.getElementById('msg');
+  el.style.display='';
   el.className='msg '+(ok?'ok':'err');
   el.textContent=text;
   setTimeout(function(){el.style.display='none'},4000);
@@ -249,8 +244,12 @@ function deployNow(){
 
 function runNow(){
   var cat=document.getElementById('catSelect').value;
+  var btn=document.getElementById('runNowBtn');
+  if(btn&&btn.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='시작 중...'}
+  showMsg('생성 요청을 서버에 전달하는 중입니다.',true);
   var opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cat?{category:cat}:{})};
-  fetch(API+'/api/cron/run',opts).then(function(r){return r.json()}).then(function(){showMsg('포스트 생성 시작됨'+(cat?' ('+cat+')':''),true);setTimeout(refreshDash,2000)}).catch(function(e){showMsg(e.message,false)});
+  fetch(API+'/api/cron/run',opts).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d;})}).then(function(){showMsg('포스트 생성이 시작됐습니다'+(cat?' ('+document.getElementById('catSelect').selectedOptions[0].text+')':''),true);refreshDash();setTimeout(refreshDash,2000)}).catch(function(e){showMsg('실행 실패: '+e.message,false)}).finally(function(){if(btn){btn.disabled=false;btn.textContent='지금 실행'}});
 }
 function updateRotationInfo(){
   fetch(API+'/api/cron/status').then(function(r){return r.json()}).then(function(d){

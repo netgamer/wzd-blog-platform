@@ -2144,8 +2144,14 @@ app.post('/api/cron/stop', (req, res) => {
 });
 
 app.post('/api/cron/run', async (req, res) => {
+  const requestedCategory = req.body?.category || getCurrentCategory();
+  if (!CATEGORIES[requestedCategory]) {
+    return res.status(400).json({ error: `지원하지 않는 카테고리입니다: ${requestedCategory}` });
+  }
   res.json({ success: true, message: 'Running now...' });
-  void hourlyTask({ category: req.body?.category || getCurrentCategory(), force: true });
+  // Let Express flush the acknowledgement before research starts. Some search
+  // fallbacks are slow enough to make the admin button look unresponsive.
+  setImmediate(() => void hourlyTask({ category: requestedCategory, force: true }));
 });
 
 app.get('/api/cron/status', (req, res) => {
