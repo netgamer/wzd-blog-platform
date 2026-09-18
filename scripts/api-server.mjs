@@ -1831,7 +1831,7 @@ app.post('/api/image-error', (req, res) => {
 
   const idx = queue.findIndex(j => String(j.id) === String(jobId));
   const retryableImageError = /HTTP 422|Duplicate image|중복 이미지|비율|1:1|square|landscape/i.test(String(error || ''));
-  if (idx >= 0 && retryableImageError && (queue[idx].validationRetries || 0) < 3) {
+  if (idx >= 0 && retryableImageError && (queue[idx].validationRetries || 0) < 5) {
     const retryJob = queue[idx];
     retryJob.status = 'pending';
     retryJob.validationRetries = (retryJob.validationRetries || 0) + 1;
